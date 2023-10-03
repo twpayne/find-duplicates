@@ -42,13 +42,13 @@ var sha256SumZero = sha256.New().Sum(nil)
 
 // statistics contains various statistics.
 var statistics struct {
-	dirEntries  uint64
+	dirEntries  atomic.Uint64
 	_           [56]byte
-	totalBytes  uint64
+	totalBytes  atomic.Uint64
 	_           [56]byte
-	filesOpened uint64
+	filesOpened atomic.Uint64
 	_           [56]byte
-	bytesHashed uint64
+	bytesHashed atomic.Uint64
 	_           [56]byte
 }
 
@@ -58,7 +58,7 @@ func concurrentWalkDir(ctx context.Context, root string, walkDirFunc fs.WalkDirF
 	if err != nil {
 		return walkDirFunc(root, nil, err)
 	}
-	atomic.AddUint64(&statistics.dirEntries, uint64(len(dirEntries)))
+	statistics.dirEntries.Add(uint64(len(dirEntries)))
 	errGroup, ctx := errgroup.WithContext(ctx)
 FOR:
 	for _, dirEntry := range dirEntries {
@@ -94,7 +94,7 @@ func findRegularFiles(ctx context.Context, regularFilesCh chan<- pathWithSize, r
 			return err
 		}
 		size := fileInfo.Size()
-		atomic.AddUint64(&statistics.totalBytes, uint64(size))
+		statistics.totalBytes.Add(uint64(size))
 		regularFilesCh <- pathWithSize{
 			path: path,
 			size: size,
@@ -162,14 +162,14 @@ func (p pathWithSize) hash() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	atomic.AddUint64(&statistics.filesOpened, 1)
+	statistics.filesOpened.Add(1)
 	defer file.Close()
 	hash := sha256.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
 		return nil, err
 	}
-	atomic.AddUint64(&statistics.bytesHashed, uint64(written))
+	statistics.bytesHashed.Add(uint64(written))
 	return hash.Sum(nil), nil
 }
 
@@ -227,7 +227,7 @@ func run() error {
 	}
 
 	// Find all duplicates, indexed by hex string of their checksum.
-	result := make(map[string][]string)
+	result := make(map[string][]string, len(pathsByHash))
 	for checksum, paths := range pathsByHash {
 		if len(paths) >= *threshold {
 			key := hex.EncodeToString(checksum[:])
@@ -244,10 +244,14 @@ func run() error {
 
 	// Print statistics.
 	if *printStatistics {
-		fmt.Fprintf(os.Stderr, "dirEntries: %d\n", statistics.dirEntries)
-		fmt.Fprintf(os.Stderr, "filesOpened: %d (%.1f%%)\n", statistics.filesOpened, 100*float64(statistics.filesOpened)/float64(statistics.dirEntries)+0.05)
-		fmt.Fprintf(os.Stderr, "totalBytes: %d\n", statistics.totalBytes)
-		fmt.Fprintf(os.Stderr, "bytesHashed: %d (%.1f%%)\n", statistics.bytesHashed, 100*float64(statistics.bytesHashed)/float64(statistics.totalBytes)+0.05)
+		dirEntries := statistics.dirEntries.Load()
+		filesOpened := statistics.filesOpened.Load()
+		totalBytes := statistics.totalBytes.Load()
+		bytesHashed := statistics.bytesHashed.Load()
+		fmt.Fprintf(os.Stderr, "dirEntries: %d\n", dirEntries)
+		fmt.Fprintf(os.Stderr, "filesOpened: %d (%.1f%%)\n", filesOpened, 100*float64(filesOpened)/float64(dirEntries)+0.05)
+		fmt.Fprintf(os.Stderr, "totalBytes: %d\n", totalBytes)
+		fmt.Fprintf(os.Stderr, "bytesHashed: %d (%.1f%%)\n", bytesHashed, 100*float64(bytesHashed)/float64(totalBytes)+0.05)
 	}
 
 	return nil
