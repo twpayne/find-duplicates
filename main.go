@@ -7,8 +7,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
 )
@@ -27,8 +26,7 @@ import (
 // different speeds, at the expense of memory usage.
 const channelBufferCapacity = 1024
 
-// A hash is a SHA256 hash.
-type hash = [sha256.Size]byte
+type hash = uint64
 
 // A pathWithSize contains a path to a regular file and its size.
 type pathWithSize struct {
@@ -36,14 +34,14 @@ type pathWithSize struct {
 	size int64
 }
 
-// A pathWithHash contains a path to a regular file and its SHA256 hash.
+// A pathWithHash contains a path to a regular file and its hash.
 type pathWithHash struct {
 	path string
 	hash hash
 }
 
-// sha256SumZero is the SHA256 sum of the empty file.
-var sha256SumZero = sha256.New().Sum(nil)
+// xxHashSumZero is the hash of the empty file.
+var xxHashSumZero = xxhash.New().Sum64()
 
 // statistics contains various statistics.
 var statistics struct {
@@ -153,29 +151,29 @@ func (p pathWithSize) pathWithHash() (pathWithHash, error) {
 	}
 	pathWithHash := pathWithHash{
 		path: p.path,
+		hash: hash,
 	}
-	copy(pathWithHash.hash[:], hash)
 	return pathWithHash, nil
 }
 
 // hash returns p's hash.
-func (p pathWithSize) hash() ([]byte, error) {
+func (p pathWithSize) hash() (hash, error) {
 	if p.size == 0 {
-		return sha256SumZero, nil
+		return xxHashSumZero, nil
 	}
 	file, err := os.Open(p.path)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	statistics.filesOpened.Add(1)
 	defer file.Close()
-	hash := sha256.New()
+	hash := xxhash.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	statistics.bytesHashed.Add(uint64(written))
-	return hash.Sum(nil), nil
+	return hash.Sum64(), nil
 }
 
 func run() error {
@@ -232,10 +230,9 @@ func run() error {
 	}
 
 	// Find all duplicates, indexed by hex string of their checksum.
-	result := make(map[string][]string, len(pathsByHash))
-	for checksum, paths := range pathsByHash {
+	result := make(map[hash][]string, len(pathsByHash))
+	for key, paths := range pathsByHash {
 		if len(paths) >= *threshold {
-			key := hex.EncodeToString(checksum[:])
 			result[key] = paths
 		}
 	}

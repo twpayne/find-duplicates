@@ -1,7 +1,7 @@
 # `find-duplicates`
 
-`find-duplicates` finds duplicate files quickly based on the SHA256 hashes of
-their contents.
+`find-duplicates` finds duplicate files quickly based on the
+[xxHashes](https://xxhash.com/) of their contents.
 
 ## Install
 
@@ -18,8 +18,8 @@ find-duplicates [options] [path]
 `path` is a directory to walk recursively. If `path` is not specified then the
 current directory is walked.
 
-The output is a JSON object with properties for each observed SHA256 hash and
-values arrays of filenames with contents with that SHA256 hash.
+The output is a JSON object with properties for each observed xxHash and values
+arrays of filenames with contents with that xxHash.
 
 Options are:
 
