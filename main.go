@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
@@ -39,12 +40,25 @@ type pathWithHash struct {
 // sha256SumZero is the SHA256 sum of the empty file.
 var sha256SumZero = sha256.New().Sum(nil)
 
+// statistics contains various statistics.
+var statistics struct {
+	dirEntries  uint64
+	_           [56]byte
+	totalBytes  uint64
+	_           [56]byte
+	filesOpened uint64
+	_           [56]byte
+	bytesHashed uint64
+	_           [56]byte
+}
+
 // concurrentWalkDir is like io/fs.WalkDir except that directories are walked concurrently.
 func concurrentWalkDir(ctx context.Context, root string, walkDirFunc fs.WalkDirFunc) error {
 	dirEntries, err := os.ReadDir(root)
 	if err != nil {
 		return walkDirFunc(root, nil, err)
 	}
+	atomic.AddUint64(&statistics.dirEntries, uint64(len(dirEntries)))
 	errGroup, ctx := errgroup.WithContext(ctx)
 FOR:
 	for _, dirEntry := range dirEntries {
@@ -79,9 +93,11 @@ func findRegularFiles(ctx context.Context, regularFilesCh chan<- pathWithSize, r
 		if err != nil {
 			return err
 		}
+		size := fileInfo.Size()
+		atomic.AddUint64(&statistics.totalBytes, uint64(size))
 		regularFilesCh <- pathWithSize{
 			path: path,
-			size: fileInfo.Size(),
+			size: size,
 		}
 		return nil
 	})
@@ -146,17 +162,21 @@ func (p pathWithSize) hash() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	atomic.AddUint64(&statistics.filesOpened, 1)
 	defer file.Close()
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	written, err := io.Copy(hash, file)
+	if err != nil {
 		return nil, err
 	}
+	atomic.AddUint64(&statistics.bytesHashed, uint64(written))
 	return hash.Sum(nil), nil
 }
 
 func run() error {
 	// Parse command line arguments.
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
+	printStatistics := pflag.BoolP("statistics", "s", false, "print statistics")
 	pflag.Parse()
 	var root string
 	switch pflag.NArg() {
@@ -218,7 +238,19 @@ func run() error {
 	// Write JSON output.
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
+	if err := encoder.Encode(result); err != nil {
+		return err
+	}
+
+	// Print statistics.
+	if *printStatistics {
+		fmt.Fprintf(os.Stderr, "dirEntries: %d\n", statistics.dirEntries)
+		fmt.Fprintf(os.Stderr, "filesOpened: %d (%.1f%%)\n", statistics.filesOpened, 100*float64(statistics.filesOpened)/float64(statistics.dirEntries)+0.05)
+		fmt.Fprintf(os.Stderr, "totalBytes: %d\n", statistics.totalBytes)
+		fmt.Fprintf(os.Stderr, "bytesHashed: %d (%.1f%%)\n", statistics.bytesHashed, 100*float64(statistics.bytesHashed)/float64(statistics.totalBytes)+0.05)
+	}
+
+	return nil
 }
 
 func main() {
