@@ -22,6 +22,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// channelBufferCapacity is the buffer capacity between different components.
+// Larger values increase performance by allowing different components to run at
+// different speeds, at the expense of memory usage.
+const channelBufferCapacity = 1024
+
 // A hash is a SHA256 hash.
 type hash = [sha256.Size]byte
 
@@ -192,21 +197,21 @@ func run() error {
 	errGroup, ctx := errgroup.WithContext(context.Background())
 
 	// Generate paths with size.
-	regularFilesCh := make(chan pathWithSize)
+	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
 	errGroup.Go(func() error {
 		defer close(regularFilesCh)
 		return findRegularFiles(ctx, regularFilesCh, root)
 	})
 
 	// Generate paths with size to hash.
-	pathsToHashCh := make(chan pathWithSize)
+	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
 	errGroup.Go(func() error {
 		defer close(pathsToHashCh)
 		return findPathsWithIdenticalSizes(pathsToHashCh, regularFilesCh, *threshold)
 	})
 
 	// Generate paths with hashes.
-	pathsWithHashCh := make(chan pathWithHash)
+	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
 	errGroup.Go(func() error {
 		defer close(pathsWithHashCh)
 		return hashPaths(ctx, pathsWithHashCh, pathsToHashCh)
