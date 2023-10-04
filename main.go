@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,8 +17,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/spf13/pflag"
+	"github.com/zeebo/xxh3"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,7 +27,7 @@ import (
 // different speeds, at the expense of memory usage.
 const channelBufferCapacity = 1024
 
-type hash = uint64
+type hash = xxh3.Uint128
 
 // A pathWithSize contains a path to a regular file and its size.
 type pathWithSize struct {
@@ -40,8 +41,8 @@ type pathWithHash struct {
 	hash hash
 }
 
-// xxHashSumZero is the hash of the empty file.
-var xxHashSumZero = xxhash.New().Sum64()
+// xx3HashSumZero is the hash of the empty file.
+var xx3HashSumZero = xxh3.New().Sum128()
 
 // statistics contains various statistics.
 var statistics struct {
@@ -159,21 +160,21 @@ func (p pathWithSize) pathWithHash() (pathWithHash, error) {
 // hash returns p's hash.
 func (p pathWithSize) hash() (hash, error) {
 	if p.size == 0 {
-		return xxHashSumZero, nil
+		return xx3HashSumZero, nil
 	}
 	file, err := os.Open(p.path)
 	if err != nil {
-		return 0, err
+		return xxh3.Uint128{}, err
 	}
 	statistics.filesOpened.Add(1)
 	defer file.Close()
-	hash := xxhash.New()
+	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
-		return 0, err
+		return xxh3.Uint128{}, err
 	}
 	statistics.bytesHashed.Add(uint64(written))
-	return hash.Sum64(), nil
+	return hash.Sum128(), nil
 }
 
 func run() error {
@@ -230,9 +231,11 @@ func run() error {
 	}
 
 	// Find all duplicates, indexed by hex string of their checksum.
-	result := make(map[hash][]string, len(pathsByHash))
-	for key, paths := range pathsByHash {
+	result := make(map[string][]string, len(pathsByHash))
+	for hash, paths := range pathsByHash {
 		if len(paths) >= *threshold {
+			bytes := hash.Bytes()
+			key := hex.EncodeToString(bytes[:])
 			result[key] = paths
 		}
 	}
