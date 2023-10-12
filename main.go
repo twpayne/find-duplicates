@@ -182,14 +182,11 @@ func run() error {
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
 	printStatistics := pflag.BoolP("statistics", "s", false, "print statistics")
 	pflag.Parse()
-	var root string
-	switch pflag.NArg() {
-	case 0:
-		root = "."
-	case 1:
-		root = pflag.Arg(0)
-	default:
-		return fmt.Errorf("expected 0 or 1 arguments, got %d", pflag.NArg())
+	var roots []string
+	if pflag.NArg() == 0 {
+		roots = []string{"."}
+	} else {
+		roots = pflag.Args()
 	}
 
 	// Create an errgroup to synchronize goroutines.
@@ -199,7 +196,14 @@ func run() error {
 	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
 	errGroup.Go(func() error {
 		defer close(regularFilesCh)
-		return findRegularFiles(ctx, regularFilesCh, root)
+		findErrGroup, ctx := errgroup.WithContext(ctx)
+		for _, root := range roots {
+			root := root
+			findErrGroup.Go(func() error {
+				return findRegularFiles(ctx, regularFilesCh, root)
+			})
+		}
+		return findErrGroup.Wait()
 	})
 
 	// Generate paths with size to hash.

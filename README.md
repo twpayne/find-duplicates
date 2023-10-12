@@ -12,10 +12,10 @@ $ go install github.com/twpayne/find-duplicates@latest
 ## Usage
 
 ```
-find-duplicates [options] [path]
+find-duplicates [options] [paths...]
 ```
 
-`path` is a directory to walk recursively. If `path` is not specified then the
+`paths` are directories to walk recursively. If no `paths` are given then the
 current directory is walked.
 
 The output is a JSON object with properties for each observed xxHash and values
