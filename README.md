@@ -36,12 +36,12 @@ arrays of filenames with contents with that xxHash.
 
 Options are:
 
-`--keep-going` keep going after errors.
+`--keep-going` or `-k` keep going after errors.
 
-`--threshold=<int>` sets the minimum number of files with the same content to be
-considered duplicates. The default is 2.
+`--threshold=<int>` or `-t <int>` sets the minimum number of files with the same
+content to be considered duplicates. The default is 2.
 
-`--statistics` prints statistics to stderr.
+`--statistics` or `-s` prints statistics to stderr.
 
 ## How does `find-duplicates` work?
 
