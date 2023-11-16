@@ -277,11 +277,27 @@ func run() error {
 		filesOpened := statistics.filesOpened.Load()
 		totalBytes := statistics.totalBytes.Load()
 		bytesHashed := statistics.bytesHashed.Load()
-		fmt.Fprintf(os.Stderr, "errors: %d\n", errors)
-		fmt.Fprintf(os.Stderr, "dirEntries: %d\n", dirEntries)
-		fmt.Fprintf(os.Stderr, "filesOpened: %d (%.1f%%)\n", filesOpened, 100*float64(filesOpened)/float64(dirEntries)+0.05)
-		fmt.Fprintf(os.Stderr, "totalBytes: %d\n", totalBytes)
-		fmt.Fprintf(os.Stderr, "bytesHashed: %d (%.1f%%)\n", bytesHashed, 100*float64(bytesHashed)/float64(totalBytes)+0.05)
+		statisticsEncoder := json.NewEncoder(os.Stderr)
+		statisticsEncoder.SetIndent("", "  ")
+		if err := statisticsEncoder.Encode(struct {
+			Errors             uint64  `json:"errors"`
+			DirEntries         uint64  `json:"dirEntries"`
+			FilesOpened        uint64  `json:"filesOpened"`
+			FilesOpenedPercent float64 `json:"filesOpenedPercent"`
+			TotalBytes         uint64  `json:"totalBytes"`
+			BytesHashed        uint64  `json:"bytesHashed"`
+			BytesHashedPercent float64 `json:"bytesHashedPercent"`
+		}{
+			Errors:             errors,
+			DirEntries:         dirEntries,
+			FilesOpened:        filesOpened,
+			FilesOpenedPercent: 100 * float64(filesOpened) / float64(dirEntries),
+			TotalBytes:         totalBytes,
+			BytesHashed:        bytesHashed,
+			BytesHashedPercent: 100 * float64(bytesHashed) / float64(totalBytes),
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil
