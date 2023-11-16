@@ -36,6 +36,8 @@ arrays of filenames with contents with that xxHash.
 
 Options are:
 
+`--keep-going` keep going after errors.
+
 `--threshold=<int>` sets the minimum number of files with the same content to be
 considered duplicates. The default is 2.
 

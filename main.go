@@ -46,6 +46,8 @@ var xx3HashSumZero = xxh3.New().Sum128()
 
 // statistics contains various statistics.
 var statistics struct {
+	errors      atomic.Uint64
+	_           [56]byte
 	dirEntries  atomic.Uint64
 	_           [56]byte
 	totalBytes  atomic.Uint64
@@ -179,6 +181,7 @@ func (p pathWithSize) hash() (hash, error) {
 
 func run() error {
 	// Parse command line arguments.
+	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
 	printStatistics := pflag.BoolP("statistics", "s", false, "print statistics")
 	pflag.Parse()
@@ -192,6 +195,22 @@ func run() error {
 	// Create an errgroup to synchronize goroutines.
 	errGroup, ctx := errgroup.WithContext(context.Background())
 
+	var maybeSwallowError func(error) error
+	if *keepGoing {
+		maybeSwallowError = func(err error) error {
+			if err != nil {
+				statistics.errors.Add(1)
+				fmt.Fprintln(os.Stderr, err)
+				return nil
+			}
+			return err
+		}
+	} else {
+		maybeSwallowError = func(err error) error {
+			return err
+		}
+	}
+
 	// Generate paths with size.
 	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
 	errGroup.Go(func() error {
@@ -200,7 +219,7 @@ func run() error {
 		for _, root := range roots {
 			root := root
 			findErrGroup.Go(func() error {
-				return findRegularFiles(ctx, regularFilesCh, root)
+				return maybeSwallowError(findRegularFiles(ctx, regularFilesCh, root))
 			})
 		}
 		return findErrGroup.Wait()
@@ -210,14 +229,14 @@ func run() error {
 	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
 	errGroup.Go(func() error {
 		defer close(pathsToHashCh)
-		return findPathsWithIdenticalSizes(pathsToHashCh, regularFilesCh, *threshold)
+		return maybeSwallowError(findPathsWithIdenticalSizes(pathsToHashCh, regularFilesCh, *threshold))
 	})
 
 	// Generate paths with hashes.
 	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
 	errGroup.Go(func() error {
 		defer close(pathsWithHashCh)
-		return hashPaths(ctx, pathsWithHashCh, pathsToHashCh)
+		return maybeSwallowError(hashPaths(ctx, pathsWithHashCh, pathsToHashCh))
 	})
 
 	// Accumulate paths by hash.
@@ -253,10 +272,12 @@ func run() error {
 
 	// Print statistics.
 	if *printStatistics {
+		errors := statistics.errors.Load()
 		dirEntries := statistics.dirEntries.Load()
 		filesOpened := statistics.filesOpened.Load()
 		totalBytes := statistics.totalBytes.Load()
 		bytesHashed := statistics.bytesHashed.Load()
+		fmt.Fprintf(os.Stderr, "errors: %d\n", errors)
 		fmt.Fprintf(os.Stderr, "dirEntries: %d\n", dirEntries)
 		fmt.Fprintf(os.Stderr, "filesOpened: %d (%.1f%%)\n", filesOpened, 100*float64(filesOpened)/float64(dirEntries)+0.05)
 		fmt.Fprintf(os.Stderr, "totalBytes: %d\n", totalBytes)
@@ -268,7 +289,7 @@ func run() error {
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
