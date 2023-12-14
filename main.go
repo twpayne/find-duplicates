@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime/trace"
 	"sync/atomic"
 
 	"github.com/spf13/pflag"
@@ -189,12 +190,25 @@ func run() error {
 	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
 	printStatistics := pflag.BoolP("statistics", "s", false, "print statistics")
+	traceFile := pflag.String("trace", "", "trace file")
 	pflag.Parse()
 	var roots []string
 	if pflag.NArg() == 0 {
 		roots = []string{"."}
 	} else {
 		roots = pflag.Args()
+	}
+
+	if *traceFile != "" {
+		traceFile, err := os.Create(*traceFile)
+		if err != nil {
+			return err
+		}
+		defer traceFile.Close()
+		if err := trace.Start(traceFile); err != nil {
+			return err
+		}
+		defer trace.Stop()
 	}
 
 	// Create an errgroup to synchronize goroutines.
