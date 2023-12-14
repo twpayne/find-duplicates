@@ -27,6 +27,11 @@ import (
 // different speeds, at the expense of memory usage.
 const channelBufferCapacity = 1024
 
+// minCacheLineSize is the minimum cache line size, used to prevent false
+// sharing. Smaller values have an insignificant effect on memory usage. Larger
+// values help separate values into separate cache lines.
+const minCacheLineSize = 128
+
 type hash = xxh3.Uint128
 
 // A pathWithSize contains a path to a regular file and its size.
@@ -47,15 +52,15 @@ var xx3HashSumZero = xxh3.New().Sum128()
 // statistics contains various statistics.
 var statistics struct {
 	errors      atomic.Uint64
-	_           [56]byte
+	_           [minCacheLineSize - 8]byte
 	dirEntries  atomic.Uint64
-	_           [56]byte
+	_           [minCacheLineSize - 8]byte
 	totalBytes  atomic.Uint64
-	_           [56]byte
+	_           [minCacheLineSize - 8]byte
 	filesOpened atomic.Uint64
-	_           [56]byte
+	_           [minCacheLineSize - 8]byte
 	bytesHashed atomic.Uint64
-	_           [56]byte
+	_           [minCacheLineSize - 8]byte
 }
 
 // concurrentWalkDir is like io/fs.WalkDir except that directories are walked concurrently.
