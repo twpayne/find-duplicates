@@ -38,7 +38,7 @@ Options are:
 
 `--keep-going` or `-k` keep going after errors.
 
-`--output=<file>` or `-o <file>` write output to `<file>`.
+`--output=<file>` or `-o <file>` write output to `<file>`, default is stdout.
 
 `--threshold=<int>` or `-t <int>` sets the minimum number of files with the same
 content to be considered duplicates. The default is 2.
