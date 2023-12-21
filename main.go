@@ -189,6 +189,7 @@ func run() error {
 	// Parse command line arguments.
 	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
+	output := pflag.StringP("output", "o", "", "output file")
 	printStatistics := pflag.BoolP("statistics", "s", false, "print statistics")
 	traceFile := pflag.String("trace", "", "trace file")
 	pflag.Parse()
@@ -282,8 +283,19 @@ func run() error {
 		}
 	}
 
-	// Write JSON output.
-	encoder := json.NewEncoder(os.Stdout)
+	// Write JSON outputFile.
+	var outputFile *os.File
+	if *output == "" || *output == "-" {
+		outputFile = os.Stdout
+	} else {
+		file, err := os.Create(*output)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		outputFile = file
+	}
+	encoder := json.NewEncoder(outputFile)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(result); err != nil {
 		return err
