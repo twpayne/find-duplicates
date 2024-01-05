@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
@@ -336,10 +337,10 @@ func run() error {
 			Errors:             errors,
 			DirEntries:         dirEntries,
 			FilesOpened:        filesOpened,
-			FilesOpenedPercent: 100 * float64(filesOpened) / float64(dirEntries),
+			FilesOpenedPercent: 100 * float64(filesOpened) / math.Max(1, float64(dirEntries)),
 			TotalBytes:         totalBytes,
 			BytesHashed:        bytesHashed,
-			BytesHashedPercent: 100 * float64(bytesHashed) / float64(totalBytes),
+			BytesHashedPercent: 100 * float64(bytesHashed) / math.Max(1, float64(totalBytes)),
 		}); err != nil {
 			return err
 		}
