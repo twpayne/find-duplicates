@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
@@ -120,10 +119,12 @@ func findRegularFiles(ctx context.Context, regularFilesCh chan<- pathWithSize, r
 // findPathsWithIdenticalSizes reads paths from regularFilesCh and, once there
 // are more than threshold paths with the same size, writes them to
 // pathsToHashCh.
+//
+//nolint:unparam
 func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize, threshold int) error {
 	allPathsBySize := make(map[int64][]pathWithSize)
 	for pathWithSize := range regularFilesCh {
-		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize)
+		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
 		allPathsBySize[pathWithSize.size] = pathsBySize
 		if len(pathsBySize) == threshold {
 			for _, p := range pathsBySize {
@@ -337,10 +338,10 @@ func run() error {
 			Errors:             errors,
 			DirEntries:         dirEntries,
 			FilesOpened:        filesOpened,
-			FilesOpenedPercent: 100 * float64(filesOpened) / math.Max(1, float64(dirEntries)),
+			FilesOpenedPercent: 100 * float64(filesOpened) / max(1, float64(dirEntries)),
 			TotalBytes:         totalBytes,
 			BytesHashed:        bytesHashed,
-			BytesHashedPercent: 100 * float64(bytesHashed) / math.Max(1, float64(totalBytes)),
+			BytesHashedPercent: 100 * float64(bytesHashed) / max(1, float64(totalBytes)),
 		}); err != nil {
 			return err
 		}
