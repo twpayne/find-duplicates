@@ -119,10 +119,12 @@ func findRegularFiles(ctx context.Context, regularFilesCh chan<- pathWithSize, r
 // findPathsWithIdenticalSizes reads paths from regularFilesCh and, once there
 // are more than threshold paths with the same size, writes them to
 // pathsToHashCh.
+//
+//nolint:unparam
 func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize, threshold int) error {
 	allPathsBySize := make(map[int64][]pathWithSize)
 	for pathWithSize := range regularFilesCh {
-		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize)
+		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
 		allPathsBySize[pathWithSize.size] = pathsBySize
 		if len(pathsBySize) == threshold {
 			for _, p := range pathsBySize {
