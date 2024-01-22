@@ -8,11 +8,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
-	"github.com/twpayne/find-duplicates/internal/stats"
 	"github.com/zeebo/xxh3"
+
+	"github.com/twpayne/find-duplicates/internal/stats"
 )
 
 type Finder struct {
@@ -101,12 +103,24 @@ func findRegularFiles(root string, errChan chan<- error, regularFilesCh chan<- p
 	concurrentWalkDir(root, errChan, walkDirFunc)
 }
 
-// findPathsWithIdenticalSizes reads paths from regularFilesCh and, once there
-// are more than threshold paths with the same size, writes them to
-// pathsToHashCh.
-func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize, threshold int) {
-	allPathsBySize := make(map[int64][]pathWithSize)
+// findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
+// ones to uniquePathsWithSize.
+func findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
+	allPaths := make(map[pathWithSize]struct{})
 	for pathWithSize := range regularFilesCh {
+		if _, ok := allPaths[pathWithSize]; !ok {
+			allPaths[pathWithSize] = struct{}{}
+			uniquePathsWithSizeCh <- pathWithSize
+		}
+	}
+}
+
+// findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
+// there are more than threshold paths with the same size, writes them to
+// pathsToHashCh.
+func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
+	allPathsBySize := make(map[int64][]pathWithSize)
+	for pathWithSize := range uniquePathsWithSize {
 		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
 		allPathsBySize[pathWithSize.size] = pathsBySize
 		if len(pathsBySize) == threshold {
@@ -195,7 +209,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 
 	// Generate paths with size.
 	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(regularFilesCh)
 		var wg sync.WaitGroup
 		for _, root := range f.Roots {
@@ -207,26 +221,33 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			})
 		}
 		wg.Wait()
-	})
+	}()
+
+	// Generate unique paths with size.
+	uniquePathsWithSizeCh := make(chan pathWithSize, channelBufferCapacity)
+	go func() {
+		defer close(uniquePathsWithSizeCh)
+		findUniquePathsWithSize(uniquePathsWithSizeCh, regularFilesCh)
+	}()
 
 	// Generate paths with size to hash.
 	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(pathsToHashCh)
-		findPathsWithIdenticalSizes(pathsToHashCh, regularFilesCh, f.DuplicateThreshold)
-	})
+		findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.DuplicateThreshold)
+	}()
 
 	// Generate paths with hashes.
 	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(pathsWithHashCh)
 		hashPaths(pathsToHashCh, pathsWithHashCh, errChan)
-	})
+	}()
 
 	// Accumulate paths by hash.
 	pathsByHash := make(map[hash][]string)
 	resultChan := make(chan map[string][]string)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(resultChan)
 
 		for pathWithHash := range pathsWithHashCh {
@@ -239,11 +260,12 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			if len(paths) >= f.DuplicateThreshold {
 				bytes := hash.Bytes()
 				key := hex.EncodeToString(bytes[:])
+				slices.Sort(paths)
 				result[key] = paths
 			}
 		}
 		resultChan <- result
-	})
+	}()
 
 	// Wait for all goroutines to finish.
 	for {
