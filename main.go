@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"runtime/pprof"
 	"runtime/trace"
 
 	"github.com/spf13/pflag"
@@ -14,7 +13,6 @@ import (
 
 func run() error {
 	// Parse command line arguments.
-	cpuProfile := pflag.String("cpu-profile", "", "write CPU profile")
 	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
 	output := pflag.StringP("output", "o", "", "output file")
@@ -28,17 +26,6 @@ func run() error {
 		roots = pflag.Args()
 	}
 
-	if *cpuProfile != "" {
-		f, err := os.Create(*cpuProfile)
-		if err != nil {
-			return err
-		}
-		defer f.Close() // error handling omitted for example
-		if err := pprof.StartCPUProfile(f); err != nil {
-			return err
-		}
-		defer pprof.StopCPUProfile()
-	}
 	if *traceFile != "" {
 		traceFile, err := os.Create(*traceFile)
 		if err != nil {
