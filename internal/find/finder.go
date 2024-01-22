@@ -12,8 +12,9 @@ import (
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
-	"github.com/twpayne/find-duplicates/internal/stats"
 	"github.com/zeebo/xxh3"
+
+	"github.com/twpayne/find-duplicates/internal/stats"
 )
 
 type Finder struct {
