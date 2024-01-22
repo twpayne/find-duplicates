@@ -195,7 +195,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 
 	// Generate paths with size.
 	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(regularFilesCh)
 		var wg sync.WaitGroup
 		for _, root := range f.Roots {
@@ -207,26 +207,26 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			})
 		}
 		wg.Wait()
-	})
+	}()
 
 	// Generate paths with size to hash.
 	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(pathsToHashCh)
 		findPathsWithIdenticalSizes(pathsToHashCh, regularFilesCh, f.DuplicateThreshold)
-	})
+	}()
 
 	// Generate paths with hashes.
 	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(pathsWithHashCh)
 		hashPaths(pathsToHashCh, pathsWithHashCh, errChan)
-	})
+	}()
 
 	// Accumulate paths by hash.
 	pathsByHash := make(map[hash][]string)
 	resultChan := make(chan map[string][]string)
-	_ = ants.Submit(func() {
+	go func() {
 		defer close(resultChan)
 
 		for pathWithHash := range pathsWithHashCh {
@@ -243,7 +243,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			}
 		}
 		resultChan <- result
-	})
+	}()
 
 	// Wait for all goroutines to finish.
 	for {
