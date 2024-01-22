@@ -1,9 +1,6 @@
 // find-duplicates finds duplicate files, concurrently.
 package main
 
-// FIXME handle multiple roots (arguments)
-// FIXME de-duplicate filenames in different roots
-
 import (
 	"encoding/json"
 	"fmt"

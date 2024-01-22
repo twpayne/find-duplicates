@@ -101,12 +101,24 @@ func findRegularFiles(root string, errChan chan<- error, regularFilesCh chan<- p
 	concurrentWalkDir(root, errChan, walkDirFunc)
 }
 
-// findPathsWithIdenticalSizes reads paths from regularFilesCh and, once there
-// are more than threshold paths with the same size, writes them to
-// pathsToHashCh.
-func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize, threshold int) {
-	allPathsBySize := make(map[int64][]pathWithSize)
+// findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
+// ones to uniquePathsWithSize.
+func findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
+	allPaths := make(map[pathWithSize]struct{})
 	for pathWithSize := range regularFilesCh {
+		if _, ok := allPaths[pathWithSize]; !ok {
+			allPaths[pathWithSize] = struct{}{}
+			uniquePathsWithSizeCh <- pathWithSize
+		}
+	}
+}
+
+// findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
+// there are more than threshold paths with the same size, writes them to
+// pathsToHashCh.
+func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
+	allPathsBySize := make(map[int64][]pathWithSize)
+	for pathWithSize := range uniquePathsWithSize {
 		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
 		allPathsBySize[pathWithSize.size] = pathsBySize
 		if len(pathsBySize) == threshold {
@@ -209,11 +221,18 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 		wg.Wait()
 	}()
 
+	// Generate unique paths with size.
+	uniquePathsWithSizeCh := make(chan pathWithSize, channelBufferCapacity)
+	go func() {
+		defer close(uniquePathsWithSizeCh)
+		findUniquePathsWithSize(uniquePathsWithSizeCh, regularFilesCh)
+	}()
+
 	// Generate paths with size to hash.
 	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
 	go func() {
 		defer close(pathsToHashCh)
-		findPathsWithIdenticalSizes(pathsToHashCh, regularFilesCh, f.DuplicateThreshold)
+		findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.DuplicateThreshold)
 	}()
 
 	// Generate paths with hashes.
