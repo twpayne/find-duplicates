@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
@@ -258,6 +259,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			if len(paths) >= f.DuplicateThreshold {
 				bytes := hash.Bytes()
 				key := hex.EncodeToString(bytes[:])
+				slices.Sort(paths)
 				result[key] = paths
 			}
 		}
