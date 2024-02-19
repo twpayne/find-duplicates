@@ -1,3 +1,5 @@
+go: '1.22'
+
 linters:
   enable:
   - asasalint
@@ -93,3 +95,15 @@ linters:
   - varnamelen
   - wrapcheck
   - wsl
+
+linters-settings:
+  gci:
+    sections:
+    - standard
+    - default
+    - prefix(github.com/twpayne/find-duplicates)
+  gofumpt:
+    extra-rules: true
+    module-path: github.com/twpayne/find-duplicates
+  goimports:
+    local-prefixes: github.com/twpayne/find-duplicates
