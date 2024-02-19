@@ -27,6 +27,7 @@ func run() error {
 		roots = pflag.Args()
 	}
 
+	// Create a trace file, if requested.
 	if *traceFile != "" {
 		traceFile, err := os.Create(*traceFile)
 		if err != nil {
@@ -39,18 +40,18 @@ func run() error {
 		defer trace.Stop()
 	}
 
+	// Find duplicates.
 	dupFinder := &find.Finder{
 		Roots:              roots,
 		DuplicateThreshold: *threshold,
 		KeepGoing:          *keepGoing,
 	}
-
 	result, err := dupFinder.FindDuplicates()
 	if err != nil {
 		return err
 	}
 
-	// Write JSON outputFile.
+	// Write output file.
 	var outputFile *os.File
 	if *output == "" || *output == "-" {
 		outputFile = os.Stdout
