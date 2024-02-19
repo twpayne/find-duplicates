@@ -32,6 +32,8 @@ const channelBufferCapacity = 1024
 
 type hash = xxh3.Uint128
 
+var emptyHash hash
+
 // A pathWithSize contains a path to a regular file and its size.
 type pathWithSize struct {
 	path string
@@ -173,14 +175,14 @@ func (p pathWithSize) hash() (hash, error) {
 	}
 	file, err := os.Open(p.path)
 	if err != nil {
-		return xxh3.Uint128{}, err
+		return emptyHash, err
 	}
 	Stats.FilesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
-		return xxh3.Uint128{}, err
+		return emptyHash, err
 	}
 	Stats.BytesHashed.Add(uint64(written))
 	return hash.Sum128(), nil
