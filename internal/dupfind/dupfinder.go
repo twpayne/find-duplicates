@@ -20,6 +20,7 @@ import (
 // values help separate values into separate cache lines.
 const minCacheLineSize = 128
 
+// A DupFinder finds duplicate files.
 type DupFinder struct {
 	channelBufferCapacity int
 	errorHandler          func(error) error
