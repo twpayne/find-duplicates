@@ -74,7 +74,7 @@ func run() error {
 
 	// Print statistics.
 	if *printStatistics {
-		if err := find.Stats.Print(); err != nil {
+		if err := dupFinder.Stats.Print(); err != nil {
 			return err
 		}
 	}

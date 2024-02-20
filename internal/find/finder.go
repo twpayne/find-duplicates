@@ -21,9 +21,8 @@ type Finder struct {
 	Roots              []string
 	DuplicateThreshold int
 	KeepGoing          bool
+	Stats              stats.Statistics
 }
-
-var Stats stats.Statistics
 
 // channelBufferCapacity is the buffer capacity between different components.
 // Larger values increase performance by allowing different components to run at
@@ -46,13 +45,13 @@ type pathWithHash struct {
 var emptyHash = xxh3.New().Sum128()
 
 // concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
-func concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
+func (f *Finder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
 	dirEntries, err := os.ReadDir(root)
 	if err != nil {
 		errCh <- walkDirFunc(root, nil, err)
 		return
 	}
-	Stats.DirEntries.Add(uint64(len(dirEntries)))
+	f.Stats.DirEntries.Add(uint64(len(dirEntries)))
 	var wg sync.WaitGroup
 FOR:
 	for _, dirEntry := range dirEntries {
@@ -69,7 +68,7 @@ FOR:
 			wg.Add(1)
 			_ = ants.Submit(func() {
 				defer wg.Done()
-				concurrentWalkDir(path, walkDirFunc, errCh)
+				f.concurrentWalkDir(path, walkDirFunc, errCh)
 			})
 		}
 	}
@@ -78,7 +77,7 @@ FOR:
 
 // findRegularFiles walks root and writes all regular files and their sizes to
 // regularFilesCh.
-func findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
+func (f *Finder) findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
 	walkDirFunc := func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -91,19 +90,19 @@ func findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh cha
 			return err
 		}
 		size := fileInfo.Size()
-		Stats.TotalBytes.Add(uint64(size))
+		f.Stats.TotalBytes.Add(uint64(size))
 		regularFilesCh <- pathWithSize{
 			path: path,
 			size: size,
 		}
 		return nil
 	}
-	concurrentWalkDir(root, walkDirFunc, errCh)
+	f.concurrentWalkDir(root, walkDirFunc, errCh)
 }
 
 // findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
 // ones to uniquePathsWithSize.
-func findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
+func (f *Finder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
 	allPaths := make(map[pathWithSize]struct{})
 	for pathWithSize := range regularFilesCh {
 		if _, ok := allPaths[pathWithSize]; !ok {
@@ -116,7 +115,7 @@ func findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularF
 // findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
 // there are more than threshold paths with the same size, writes them to
 // pathsToHashCh.
-func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
+func (f *Finder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
 	allPathsBySize := make(map[int64][]pathWithSize)
 	for pathWithSize := range uniquePathsWithSize {
 		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
@@ -133,13 +132,13 @@ func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsW
 
 // hashPaths reads paths from pathsToHashCh, computes their hashes, and writes
 // them to pathsWithHashCh.
-func hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
+func (f *Finder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
 	var wg sync.WaitGroup
 	for pathWithSize := range pathsToHashCh {
 		pathWithSize := pathWithSize
 		wg.Add(1)
 		_ = ants.Submit(func() {
-			pathWithHash, err := pathWithSize.pathWithHash()
+			pathWithHash, err := f.pathWithHash(pathWithSize)
 			if err != nil {
 				errCh <- err
 			} else {
@@ -152,8 +151,8 @@ func hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWit
 }
 
 // pathWithHash hashes p and returns a pathWithHash.
-func (p pathWithSize) pathWithHash() (pathWithHash, error) {
-	hash, err := p.hash()
+func (f *Finder) pathWithHash(p pathWithSize) (pathWithHash, error) {
+	hash, err := f.hash(p)
 	if err != nil {
 		return pathWithHash{}, err
 	}
@@ -165,7 +164,7 @@ func (p pathWithSize) pathWithHash() (pathWithHash, error) {
 }
 
 // hash returns p's hash.
-func (p pathWithSize) hash() (xxh3.Uint128, error) {
+func (f *Finder) hash(p pathWithSize) (xxh3.Uint128, error) {
 	if p.size == 0 {
 		return emptyHash, nil
 	}
@@ -173,14 +172,14 @@ func (p pathWithSize) hash() (xxh3.Uint128, error) {
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	Stats.FilesOpened.Add(1)
+	f.Stats.FilesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	Stats.BytesHashed.Add(uint64(written))
+	f.Stats.BytesHashed.Add(uint64(written))
 	return hash.Sum128(), nil
 }
 
@@ -191,7 +190,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	if f.KeepGoing {
 		errHandler = func(err error) error {
 			if err != nil {
-				Stats.Errors.Add(1)
+				f.Stats.Errors.Add(1)
 				fmt.Fprintln(os.Stderr, err)
 			}
 			return nil
@@ -214,7 +213,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			root := root
 			wg.Add(1)
 			_ = ants.Submit(func() {
-				findRegularFiles(root, regularFilesCh, errCh)
+				f.findRegularFiles(root, regularFilesCh, errCh)
 				wg.Done()
 			})
 		}
@@ -225,21 +224,21 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	uniquePathsWithSizeCh := make(chan pathWithSize, channelBufferCapacity)
 	go func() {
 		defer close(uniquePathsWithSizeCh)
-		findUniquePathsWithSize(uniquePathsWithSizeCh, regularFilesCh)
+		f.findUniquePathsWithSize(uniquePathsWithSizeCh, regularFilesCh)
 	}()
 
 	// Generate paths with size to hash.
 	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
 	go func() {
 		defer close(pathsToHashCh)
-		findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.DuplicateThreshold)
+		f.findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.DuplicateThreshold)
 	}()
 
 	// Generate paths with hashes.
 	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
 	go func() {
 		defer close(pathsWithHashCh)
-		hashPaths(pathsToHashCh, pathsWithHashCh, errCh)
+		f.hashPaths(pathsToHashCh, pathsWithHashCh, errCh)
 	}()
 
 	// Accumulate paths by hash.
