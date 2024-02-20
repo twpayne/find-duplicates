@@ -14,7 +14,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/panjf2000/ants/v2"
 	"github.com/zeebo/xxh3"
 )
 
@@ -115,8 +114,6 @@ func NewDupFinder(options ...Option) *DupFinder {
 }
 
 func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
-	defer ants.Release()
-
 	errCh := make(chan error, f.channelBufferCapacity)
 	defer close(errCh)
 
@@ -128,12 +125,10 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 		for _, root := range f.roots {
 			root := root
 			wg.Add(1)
-			if err := ants.Submit(func() {
+			go func() {
 				defer wg.Done()
 				f.findRegularFiles(root, regularFilesCh, errCh)
-			}); err != nil {
-				errCh <- err
-			}
+			}()
 		}
 		wg.Wait()
 	}()
@@ -236,12 +231,10 @@ FOR:
 			return
 		case dirEntry.IsDir():
 			wg.Add(1)
-			if err := ants.Submit(func() {
+			go func() {
 				defer wg.Done()
 				f.concurrentWalkDir(path, walkDirFunc, errCh)
-			}); err != nil {
-				errCh <- err
-			}
+			}()
 		}
 	}
 	wg.Wait()
@@ -329,7 +322,7 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 	for pathWithSize := range pathsToHashCh {
 		pathWithSize := pathWithSize
 		wg.Add(1)
-		if err := ants.Submit(func() {
+		go func() {
 			defer wg.Done()
 			hash, err := f.hashPath(pathWithSize)
 			if err != nil {
@@ -340,9 +333,7 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 					hash: hash,
 				}
 			}
-		}); err != nil {
-			errCh <- err
-		}
+		}()
 	}
 	wg.Wait()
 }
