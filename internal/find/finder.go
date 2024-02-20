@@ -46,10 +46,10 @@ type pathWithHash struct {
 var emptyHash = xxh3.New().Sum128()
 
 // concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
-func concurrentWalkDir(root string, errChan chan<- error, walkDirFunc fs.WalkDirFunc) {
+func concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
 	dirEntries, err := os.ReadDir(root)
 	if err != nil {
-		errChan <- walkDirFunc(root, nil, err)
+		errCh <- walkDirFunc(root, nil, err)
 		return
 	}
 	Stats.DirEntries.Add(uint64(len(dirEntries)))
@@ -63,13 +63,13 @@ FOR:
 		case dirEntry.IsDir() && errors.Is(err, fs.SkipDir):
 			// Skip directory.
 		case err != nil:
-			errChan <- err
+			errCh <- err
 			return
 		case dirEntry.IsDir():
 			wg.Add(1)
 			_ = ants.Submit(func() {
-				concurrentWalkDir(path, errChan, walkDirFunc)
-				wg.Done()
+				defer wg.Done()
+				concurrentWalkDir(path, walkDirFunc, errCh)
 			})
 		}
 	}
@@ -78,7 +78,7 @@ FOR:
 
 // findRegularFiles walks root and writes all regular files and their sizes to
 // regularFilesCh.
-func findRegularFiles(root string, errChan chan<- error, regularFilesCh chan<- pathWithSize) {
+func findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
 	walkDirFunc := func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -98,7 +98,7 @@ func findRegularFiles(root string, errChan chan<- error, regularFilesCh chan<- p
 		}
 		return nil
 	}
-	concurrentWalkDir(root, errChan, walkDirFunc)
+	concurrentWalkDir(root, walkDirFunc, errCh)
 }
 
 // findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
@@ -133,7 +133,7 @@ func findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsW
 
 // hashPaths reads paths from pathsToHashCh, computes their hashes, and writes
 // them to pathsWithHashCh.
-func hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errChan chan<- error) {
+func hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
 	var wg sync.WaitGroup
 	for pathWithSize := range pathsToHashCh {
 		pathWithSize := pathWithSize
@@ -141,7 +141,7 @@ func hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWit
 		_ = ants.Submit(func() {
 			pathWithHash, err := pathWithSize.pathWithHash()
 			if err != nil {
-				errChan <- err
+				errCh <- err
 			} else {
 				pathsWithHashCh <- pathWithHash
 			}
@@ -202,8 +202,8 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 		}
 	}
 
-	errChan := make(chan error, channelBufferCapacity)
-	defer close(errChan)
+	errCh := make(chan error, channelBufferCapacity)
+	defer close(errCh)
 
 	// Generate paths with size.
 	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
@@ -214,7 +214,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			root := root
 			wg.Add(1)
 			_ = ants.Submit(func() {
-				findRegularFiles(root, errChan, regularFilesCh)
+				findRegularFiles(root, regularFilesCh, errCh)
 				wg.Done()
 			})
 		}
@@ -239,14 +239,14 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
 	go func() {
 		defer close(pathsWithHashCh)
-		hashPaths(pathsToHashCh, pathsWithHashCh, errChan)
+		hashPaths(pathsToHashCh, pathsWithHashCh, errCh)
 	}()
 
 	// Accumulate paths by hash.
 	pathsByHash := make(map[xxh3.Uint128][]string)
-	resultChan := make(chan map[string][]string)
+	resultCh := make(chan map[string][]string)
 	go func() {
-		defer close(resultChan)
+		defer close(resultCh)
 
 		for pathWithHash := range pathsWithHashCh {
 			pathsByHash[pathWithHash.hash] = append(pathsByHash[pathWithHash.hash], pathWithHash.path)
@@ -262,17 +262,17 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 				result[key] = paths
 			}
 		}
-		resultChan <- result
+		resultCh <- result
 	}()
 
 	// Wait for all goroutines to finish.
 	for {
 		select {
-		case err := <-errChan:
+		case err := <-errCh:
 			if handledErr := errHandler(err); handledErr != nil {
 				return nil, handledErr
 			}
-		case result := <-resultChan:
+		case result := <-resultCh:
 			return result, nil
 		}
 	}
