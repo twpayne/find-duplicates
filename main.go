@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/twpayne/find-duplicates/internal/find"
+	"github.com/twpayne/find-duplicates/internal/dupfind"
 )
 
 func run() error {
@@ -44,11 +44,18 @@ func run() error {
 	}
 
 	// Find duplicates.
-	dupFinder := &find.Finder{
-		Roots:              roots,
-		DuplicateThreshold: *threshold,
-		KeepGoing:          *keepGoing,
+	options := []dupfind.Option{
+		dupfind.WithThreshold(*threshold),
+		dupfind.WithRoots(roots...),
 	}
+	if *keepGoing {
+		option := dupfind.WithErrorHandler(func(err error) error {
+			fmt.Fprintln(os.Stderr, err)
+			return nil
+		})
+		options = append(options, option)
+	}
+	dupFinder := dupfind.NewDupFinder(options...)
 	result, err := dupFinder.FindDuplicates()
 	if err != nil {
 		return err
@@ -74,7 +81,9 @@ func run() error {
 
 	// Print statistics.
 	if *printStatistics {
-		if err := find.Stats.Print(); err != nil {
+		encoder := json.NewEncoder(os.Stderr)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(dupFinder.Statistics()); err != nil {
 			return err
 		}
 	}
