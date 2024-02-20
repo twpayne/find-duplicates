@@ -1,8 +1,7 @@
-package stats
+package find
 
 import (
 	"encoding/json"
-	"os"
 	"sync/atomic"
 )
 
@@ -13,29 +12,26 @@ const minCacheLineSize = 128
 
 // Statistics contains various statistics.
 type Statistics struct {
-	Errors      atomic.Uint64
+	errors      atomic.Uint64
 	_           [minCacheLineSize - 8]byte
-	DirEntries  atomic.Uint64
+	dirEntries  atomic.Uint64
 	_           [minCacheLineSize - 8]byte
-	TotalBytes  atomic.Uint64
+	totalBytes  atomic.Uint64
 	_           [minCacheLineSize - 8]byte
-	FilesOpened atomic.Uint64
+	filesOpened atomic.Uint64
 	_           [minCacheLineSize - 8]byte
-	BytesHashed atomic.Uint64
+	bytesHashed atomic.Uint64
 	_           [minCacheLineSize - 8]byte
 }
 
-// Print prints [Statistics] to [os.Stderr].
-func (s *Statistics) Print() error {
-	errors := s.Errors.Load()
-	dirEntries := s.DirEntries.Load()
-	filesOpened := s.FilesOpened.Load()
-	totalBytes := s.TotalBytes.Load()
-	bytesHashed := s.BytesHashed.Load()
-	statisticsEncoder := json.NewEncoder(os.Stderr)
-	statisticsEncoder.SetIndent("", "  ")
+func (s *Statistics) MarshalJSON() ([]byte, error) {
+	errors := s.errors.Load()
+	dirEntries := s.dirEntries.Load()
+	filesOpened := s.filesOpened.Load()
+	totalBytes := s.totalBytes.Load()
+	bytesHashed := s.bytesHashed.Load()
 
-	return statisticsEncoder.Encode(struct {
+	return json.Marshal(struct {
 		Errors             uint64  `json:"errors"`
 		DirEntries         uint64  `json:"dirEntries"`
 		FilesOpened        uint64  `json:"filesOpened"`

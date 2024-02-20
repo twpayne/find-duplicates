@@ -13,15 +13,13 @@ import (
 
 	"github.com/panjf2000/ants/v2"
 	"github.com/zeebo/xxh3"
-
-	"github.com/twpayne/find-duplicates/internal/stats"
 )
 
 type Finder struct {
 	Roots              []string
 	DuplicateThreshold int
 	KeepGoing          bool
-	Stats              stats.Statistics
+	Statistics         *Statistics
 }
 
 // channelBufferCapacity is the buffer capacity between different components.
@@ -51,7 +49,7 @@ func (f *Finder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errC
 		errCh <- walkDirFunc(root, nil, err)
 		return
 	}
-	f.Stats.DirEntries.Add(uint64(len(dirEntries)))
+	f.Statistics.dirEntries.Add(uint64(len(dirEntries)))
 	var wg sync.WaitGroup
 FOR:
 	for _, dirEntry := range dirEntries {
@@ -90,7 +88,7 @@ func (f *Finder) findRegularFiles(root string, regularFilesCh chan<- pathWithSiz
 			return err
 		}
 		size := fileInfo.Size()
-		f.Stats.TotalBytes.Add(uint64(size))
+		f.Statistics.totalBytes.Add(uint64(size))
 		regularFilesCh <- pathWithSize{
 			path: path,
 			size: size,
@@ -172,14 +170,14 @@ func (f *Finder) hash(p pathWithSize) (xxh3.Uint128, error) {
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	f.Stats.FilesOpened.Add(1)
+	f.Statistics.filesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	f.Stats.BytesHashed.Add(uint64(written))
+	f.Statistics.bytesHashed.Add(uint64(written))
 	return hash.Sum128(), nil
 }
 
@@ -190,7 +188,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	if f.KeepGoing {
 		errHandler = func(err error) error {
 			if err != nil {
-				f.Stats.Errors.Add(1)
+				f.Statistics.errors.Add(1)
 				fmt.Fprintln(os.Stderr, err)
 			}
 			return nil

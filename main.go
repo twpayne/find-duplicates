@@ -48,6 +48,7 @@ func run() error {
 		Roots:              roots,
 		DuplicateThreshold: *threshold,
 		KeepGoing:          *keepGoing,
+		Statistics:         &find.Statistics{},
 	}
 	result, err := dupFinder.FindDuplicates()
 	if err != nil {
@@ -74,7 +75,9 @@ func run() error {
 
 	// Print statistics.
 	if *printStatistics {
-		if err := dupFinder.Stats.Print(); err != nil {
+		encoder := json.NewEncoder(os.Stderr)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(dupFinder.Statistics); err != nil {
 			return err
 		}
 	}
