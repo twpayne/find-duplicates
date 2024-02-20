@@ -107,8 +107,8 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 			root := root
 			wg.Add(1)
 			_ = ants.Submit(func() {
+				defer wg.Done()
 				f.findRegularFiles(root, regularFilesCh, errCh)
-				wg.Done()
 			})
 		}
 		wg.Wait()
@@ -289,13 +289,13 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 		pathWithSize := pathWithSize
 		wg.Add(1)
 		_ = ants.Submit(func() {
+			defer wg.Done()
 			pathWithHash, err := f.pathWithHash(pathWithSize)
 			if err != nil {
 				errCh <- err
 			} else {
 				pathsWithHashCh <- pathWithHash
 			}
-			wg.Done()
 		})
 	}
 	wg.Wait()
