@@ -1,4 +1,4 @@
-package find
+package dupfind
 
 import (
 	"encoding/json"

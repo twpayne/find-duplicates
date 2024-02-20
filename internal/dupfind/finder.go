@@ -1,4 +1,4 @@
-package find
+package dupfind
 
 import (
 	"encoding/hex"
@@ -15,17 +15,20 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
-type Finder struct {
-	Roots              []string
-	DuplicateThreshold int
-	KeepGoing          bool
-	Statistics         *Statistics
-}
-
 // channelBufferCapacity is the buffer capacity between different components.
 // Larger values increase performance by allowing different components to run at
 // different speeds, at the expense of memory usage.
 const channelBufferCapacity = 1024
+
+type DupFinder struct {
+	keepGoing  bool
+	roots      []string
+	threshold  int
+	statistics Statistics
+}
+
+// An Option sets an option on a [*DupFinder].
+type Option func(*DupFinder)
 
 // A pathWithSize contains a path to a regular file and its size.
 type pathWithSize struct {
@@ -42,14 +45,46 @@ type pathWithHash struct {
 // emptyHash is the hash of the empty file.
 var emptyHash = xxh3.New().Sum128()
 
+// WithKeepGoing sets whether to keep going on errors.
+func WithKeepGoing(keepGoing bool) Option {
+	return func(f *DupFinder) {
+		f.keepGoing = keepGoing
+	}
+}
+
+// WithRoots sets the roots.
+func WithRoots(roots ...string) Option {
+	return func(f *DupFinder) {
+		f.roots = append(f.roots, roots...)
+	}
+}
+
+// WithThreshold sets the threshold.
+func WithThreshold(threshold int) Option {
+	return func(f *DupFinder) {
+		f.threshold = threshold
+	}
+}
+
+// NewDupFinder returns a new [*DupFinder] with the given options.
+func NewDupFinder(options ...Option) *DupFinder {
+	f := &DupFinder{
+		threshold: 2,
+	}
+	for _, option := range options {
+		option(f)
+	}
+	return f
+}
+
 // concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
-func (f *Finder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
+func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
 	dirEntries, err := os.ReadDir(root)
 	if err != nil {
 		errCh <- walkDirFunc(root, nil, err)
 		return
 	}
-	f.Statistics.dirEntries.Add(uint64(len(dirEntries)))
+	f.statistics.dirEntries.Add(uint64(len(dirEntries)))
 	var wg sync.WaitGroup
 FOR:
 	for _, dirEntry := range dirEntries {
@@ -75,7 +110,7 @@ FOR:
 
 // findRegularFiles walks root and writes all regular files and their sizes to
 // regularFilesCh.
-func (f *Finder) findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
+func (f *DupFinder) findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
 	walkDirFunc := func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -88,7 +123,7 @@ func (f *Finder) findRegularFiles(root string, regularFilesCh chan<- pathWithSiz
 			return err
 		}
 		size := fileInfo.Size()
-		f.Statistics.totalBytes.Add(uint64(size))
+		f.statistics.totalBytes.Add(uint64(size))
 		regularFilesCh <- pathWithSize{
 			path: path,
 			size: size,
@@ -100,7 +135,7 @@ func (f *Finder) findRegularFiles(root string, regularFilesCh chan<- pathWithSiz
 
 // findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
 // ones to uniquePathsWithSize.
-func (f *Finder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
+func (f *DupFinder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
 	allPaths := make(map[pathWithSize]struct{})
 	for pathWithSize := range regularFilesCh {
 		if _, ok := allPaths[pathWithSize]; !ok {
@@ -113,7 +148,7 @@ func (f *Finder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSi
 // findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
 // there are more than threshold paths with the same size, writes them to
 // pathsToHashCh.
-func (f *Finder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
+func (f *DupFinder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
 	allPathsBySize := make(map[int64][]pathWithSize)
 	for pathWithSize := range uniquePathsWithSize {
 		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
@@ -130,7 +165,7 @@ func (f *Finder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, 
 
 // hashPaths reads paths from pathsToHashCh, computes their hashes, and writes
 // them to pathsWithHashCh.
-func (f *Finder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
+func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
 	var wg sync.WaitGroup
 	for pathWithSize := range pathsToHashCh {
 		pathWithSize := pathWithSize
@@ -149,7 +184,7 @@ func (f *Finder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh ch
 }
 
 // pathWithHash hashes p and returns a pathWithHash.
-func (f *Finder) pathWithHash(p pathWithSize) (pathWithHash, error) {
+func (f *DupFinder) pathWithHash(p pathWithSize) (pathWithHash, error) {
 	hash, err := f.hash(p)
 	if err != nil {
 		return pathWithHash{}, err
@@ -162,7 +197,7 @@ func (f *Finder) pathWithHash(p pathWithSize) (pathWithHash, error) {
 }
 
 // hash returns p's hash.
-func (f *Finder) hash(p pathWithSize) (xxh3.Uint128, error) {
+func (f *DupFinder) hash(p pathWithSize) (xxh3.Uint128, error) {
 	if p.size == 0 {
 		return emptyHash, nil
 	}
@@ -170,25 +205,25 @@ func (f *Finder) hash(p pathWithSize) (xxh3.Uint128, error) {
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	f.Statistics.filesOpened.Add(1)
+	f.statistics.filesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	f.Statistics.bytesHashed.Add(uint64(written))
+	f.statistics.bytesHashed.Add(uint64(written))
 	return hash.Sum128(), nil
 }
 
-func (f *Finder) FindDuplicates() (map[string][]string, error) {
+func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	defer ants.Release()
 
 	var errHandler func(error) error
-	if f.KeepGoing {
+	if f.keepGoing {
 		errHandler = func(err error) error {
 			if err != nil {
-				f.Statistics.errors.Add(1)
+				f.statistics.errors.Add(1)
 				fmt.Fprintln(os.Stderr, err)
 			}
 			return nil
@@ -207,7 +242,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	go func() {
 		defer close(regularFilesCh)
 		var wg sync.WaitGroup
-		for _, root := range f.Roots {
+		for _, root := range f.roots {
 			root := root
 			wg.Add(1)
 			_ = ants.Submit(func() {
@@ -229,7 +264,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
 	go func() {
 		defer close(pathsToHashCh)
-		f.findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.DuplicateThreshold)
+		f.findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.threshold)
 	}()
 
 	// Generate paths with hashes.
@@ -252,7 +287,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 		// Find all duplicates, indexed by hex string of their checksum.
 		result := make(map[string][]string, len(pathsByHash))
 		for hash, paths := range pathsByHash {
-			if len(paths) >= f.DuplicateThreshold {
+			if len(paths) >= f.threshold {
 				bytes := hash.Bytes()
 				key := hex.EncodeToString(bytes[:])
 				slices.Sort(paths)
@@ -273,4 +308,8 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 			return result, nil
 		}
 	}
+}
+
+func (f *DupFinder) Statistics() *Statistics {
+	return &f.statistics
 }
