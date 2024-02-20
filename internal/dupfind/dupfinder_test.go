@@ -31,6 +31,7 @@ func TestDupFinder(t *testing.T) {
 			expected: map[string][]string{},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries: 1,
+				Files:      1,
 				TotalBytes: 1,
 			},
 		},
@@ -49,6 +50,7 @@ func TestDupFinder(t *testing.T) {
 			},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries:         3,
+				Files:              3,
 				FilesOpened:        2,
 				FilesOpenedPercent: 100 * 2. / 3,
 				TotalBytes:         4,
@@ -71,6 +73,7 @@ func TestDupFinder(t *testing.T) {
 			},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries:         3,
+				Files:              3,
 				FilesOpened:        3,
 				FilesOpenedPercent: 100,
 				TotalBytes:         3,
@@ -94,8 +97,9 @@ func TestDupFinder(t *testing.T) {
 			},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries:         3,
+				Files:              2,
 				FilesOpened:        2,
-				FilesOpenedPercent: 100 * 2. / 3, // FIXME should be 100
+				FilesOpenedPercent: 100,
 				TotalBytes:         2,
 				BytesHashed:        2,
 				BytesHashedPercent: 100,
@@ -121,6 +125,7 @@ func TestDupFinder(t *testing.T) {
 			},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries:         4,
+				Files:              4,
 				FilesOpened:        4,
 				FilesOpenedPercent: 100,
 				TotalBytes:         4,
