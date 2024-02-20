@@ -30,8 +30,6 @@ var Stats stats.Statistics
 // different speeds, at the expense of memory usage.
 const channelBufferCapacity = 1024
 
-type hash = xxh3.Uint128
-
 // A pathWithSize contains a path to a regular file and its size.
 type pathWithSize struct {
 	path string
@@ -41,16 +39,11 @@ type pathWithSize struct {
 // A pathWithHash contains a path to a regular file and its hash.
 type pathWithHash struct {
 	path string
-	hash hash
+	hash xxh3.Uint128
 }
 
-var (
-	// zeroHash is the zero value of type hash.
-	zeroHash hash
-
-	// emptyHash is the hash of the empty file.
-	emptyHash = xxh3.New().Sum128()
-)
+// emptyHash is the hash of the empty file.
+var emptyHash = xxh3.New().Sum128()
 
 // concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
 func concurrentWalkDir(root string, errChan chan<- error, walkDirFunc fs.WalkDirFunc) {
@@ -172,20 +165,20 @@ func (p pathWithSize) pathWithHash() (pathWithHash, error) {
 }
 
 // hash returns p's hash.
-func (p pathWithSize) hash() (hash, error) {
+func (p pathWithSize) hash() (xxh3.Uint128, error) {
 	if p.size == 0 {
 		return emptyHash, nil
 	}
 	file, err := os.Open(p.path)
 	if err != nil {
-		return zeroHash, err
+		return xxh3.Uint128{}, err
 	}
 	Stats.FilesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
-		return zeroHash, err
+		return xxh3.Uint128{}, err
 	}
 	Stats.BytesHashed.Add(uint64(written))
 	return hash.Sum128(), nil
@@ -250,7 +243,7 @@ func (f *Finder) FindDuplicates() (map[string][]string, error) {
 	}()
 
 	// Accumulate paths by hash.
-	pathsByHash := make(map[hash][]string)
+	pathsByHash := make(map[xxh3.Uint128][]string)
 	resultChan := make(chan map[string][]string)
 	go func() {
 		defer close(resultChan)
