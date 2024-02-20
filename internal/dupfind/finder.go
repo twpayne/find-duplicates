@@ -266,11 +266,11 @@ func (f *DupFinder) hashPathWithSize(p pathWithSize) (xxh3.Uint128, error) {
 	if p.size == 0 {
 		return emptyHash, nil
 	}
+	f.statistics.filesOpened.Add(1)
 	file, err := os.Open(p.path)
 	if err != nil {
 		return xxh3.Uint128{}, err
 	}
-	f.statistics.filesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
