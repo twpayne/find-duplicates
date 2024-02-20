@@ -1,5 +1,8 @@
 package dupfind
 
+// FIXME on slow network filesystems with lots of files this code exceeds the 10000-thread limit
+// FIXME when keeping going despite errors this code can panic with "write to closed channel" as DupFinder.FindDuplicates closes channels while goroutines are still running
+
 import (
 	"encoding/hex"
 	"errors"
