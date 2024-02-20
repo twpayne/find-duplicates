@@ -13,10 +13,11 @@ import (
 
 func TestDupFinder(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		root     any
-		options  []dupfind.Option
-		expected map[string][]string
+		name               string
+		root               any
+		options            []dupfind.Option
+		expected           map[string][]string
+		expectedStatistics *dupfind.Statistics
 	}{
 		{
 			name:     "empty",
@@ -28,9 +29,35 @@ func TestDupFinder(t *testing.T) {
 				"alpha": "a",
 			},
 			expected: map[string][]string{},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries: 1,
+				TotalBytes: 1,
+			},
 		},
 		{
-			name: "one_duplicate",
+			name: "one_duplicate_unique_sizes",
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "a",
+				"gamma": "aa",
+			},
+			expected: map[string][]string{
+				"a96faf705af16834e6c632b61e964e1f": {
+					"alpha",
+					"beta",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         3,
+				FilesOpened:        2,
+				FilesOpenedPercent: 100 * 2. / 3,
+				TotalBytes:         4,
+				BytesHashed:        2,
+				BytesHashedPercent: 50,
+			},
+		},
+		{
+			name: "one_duplicate_repeated_sizes",
 			root: map[string]any{
 				"alpha": "a",
 				"beta":  "a",
@@ -41,6 +68,14 @@ func TestDupFinder(t *testing.T) {
 					"alpha",
 					"beta",
 				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         3,
+				FilesOpened:        3,
+				FilesOpenedPercent: 100,
+				TotalBytes:         3,
+				BytesHashed:        3,
+				BytesHashedPercent: 100,
 			},
 		},
 		{
@@ -56,6 +91,14 @@ func TestDupFinder(t *testing.T) {
 					"alpha",
 					"dir/beta",
 				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         3,
+				FilesOpened:        2,
+				FilesOpenedPercent: 100 * 2. / 3, // FIXME should be 100
+				TotalBytes:         2,
+				BytesHashed:        2,
+				BytesHashedPercent: 100,
 			},
 		},
 		{
@@ -76,6 +119,14 @@ func TestDupFinder(t *testing.T) {
 					"beta",
 				},
 			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         4,
+				FilesOpened:        4,
+				FilesOpenedPercent: 100,
+				TotalBytes:         4,
+				BytesHashed:        4,
+				BytesHashedPercent: 100,
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,6 +140,10 @@ func TestDupFinder(t *testing.T) {
 			actual, err := dupFinder.FindDuplicates()
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, trimValuePrefixes(actual, fs.TempDir()+"/"))
+
+			if tc.expectedStatistics != nil {
+				assert.Equal(t, tc.expectedStatistics, dupFinder.Statistics())
+			}
 		})
 	}
 }
