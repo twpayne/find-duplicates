@@ -261,8 +261,8 @@ func (f *DupFinder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWit
 	}
 }
 
-// hashPathWithSize returns p's hash.
-func (f *DupFinder) hashPathWithSize(p pathWithSize) (xxh3.Uint128, error) {
+// hashPath returns p's hash.
+func (f *DupFinder) hashPath(p pathWithSize) (xxh3.Uint128, error) {
 	if p.size == 0 {
 		return emptyHash, nil
 	}
@@ -290,26 +290,16 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 		wg.Add(1)
 		_ = ants.Submit(func() {
 			defer wg.Done()
-			pathWithHash, err := f.pathWithHash(pathWithSize)
+			hash, err := f.hashPath(pathWithSize)
 			if err != nil {
 				errCh <- err
 			} else {
-				pathsWithHashCh <- pathWithHash
+				pathsWithHashCh <- pathWithHash{
+					path: pathWithSize.path,
+					hash: hash,
+				}
 			}
 		})
 	}
 	wg.Wait()
-}
-
-// pathWithHash hashes p and returns a pathWithHash.
-func (f *DupFinder) pathWithHash(p pathWithSize) (pathWithHash, error) {
-	hash, err := f.hashPathWithSize(p)
-	if err != nil {
-		return pathWithHash{}, err
-	}
-	pathWithHash := pathWithHash{
-		path: p.path,
-		hash: hash,
-	}
-	return pathWithHash, nil
 }
