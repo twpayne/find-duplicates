@@ -77,145 +77,6 @@ func NewDupFinder(options ...Option) *DupFinder {
 	return f
 }
 
-// concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
-func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
-	dirEntries, err := os.ReadDir(root)
-	if err != nil {
-		errCh <- walkDirFunc(root, nil, err)
-		return
-	}
-	f.statistics.dirEntries.Add(uint64(len(dirEntries)))
-	var wg sync.WaitGroup
-FOR:
-	for _, dirEntry := range dirEntries {
-		path := filepath.Join(root, dirEntry.Name())
-		switch err := walkDirFunc(path, dirEntry, nil); {
-		case errors.Is(err, fs.SkipAll):
-			break FOR
-		case dirEntry.IsDir() && errors.Is(err, fs.SkipDir):
-			// Skip directory.
-		case err != nil:
-			errCh <- err
-			return
-		case dirEntry.IsDir():
-			wg.Add(1)
-			_ = ants.Submit(func() {
-				defer wg.Done()
-				f.concurrentWalkDir(path, walkDirFunc, errCh)
-			})
-		}
-	}
-	wg.Wait()
-}
-
-// findRegularFiles walks root and writes all regular files and their sizes to
-// regularFilesCh.
-func (f *DupFinder) findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
-	walkDirFunc := func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.Type() != 0 {
-			return nil
-		}
-		fileInfo, err := dirEntry.Info()
-		if err != nil {
-			return err
-		}
-		size := fileInfo.Size()
-		f.statistics.totalBytes.Add(uint64(size))
-		regularFilesCh <- pathWithSize{
-			path: path,
-			size: size,
-		}
-		return nil
-	}
-	f.concurrentWalkDir(root, walkDirFunc, errCh)
-}
-
-// findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
-// ones to uniquePathsWithSize.
-func (f *DupFinder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
-	allPaths := make(map[pathWithSize]struct{})
-	for pathWithSize := range regularFilesCh {
-		if _, ok := allPaths[pathWithSize]; !ok {
-			allPaths[pathWithSize] = struct{}{}
-			uniquePathsWithSizeCh <- pathWithSize
-		}
-	}
-}
-
-// findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
-// there are more than threshold paths with the same size, writes them to
-// pathsToHashCh.
-func (f *DupFinder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
-	allPathsBySize := make(map[int64][]pathWithSize)
-	for pathWithSize := range uniquePathsWithSize {
-		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
-		allPathsBySize[pathWithSize.size] = pathsBySize
-		if len(pathsBySize) == threshold {
-			for _, p := range pathsBySize {
-				pathsToHashCh <- p
-			}
-		} else if len(pathsBySize) > threshold {
-			pathsToHashCh <- pathWithSize
-		}
-	}
-}
-
-// hashPaths reads paths from pathsToHashCh, computes their hashes, and writes
-// them to pathsWithHashCh.
-func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
-	var wg sync.WaitGroup
-	for pathWithSize := range pathsToHashCh {
-		pathWithSize := pathWithSize
-		wg.Add(1)
-		_ = ants.Submit(func() {
-			pathWithHash, err := f.pathWithHash(pathWithSize)
-			if err != nil {
-				errCh <- err
-			} else {
-				pathsWithHashCh <- pathWithHash
-			}
-			wg.Done()
-		})
-	}
-	wg.Wait()
-}
-
-// pathWithHash hashes p and returns a pathWithHash.
-func (f *DupFinder) pathWithHash(p pathWithSize) (pathWithHash, error) {
-	hash, err := f.hash(p)
-	if err != nil {
-		return pathWithHash{}, err
-	}
-	pathWithHash := pathWithHash{
-		path: p.path,
-		hash: hash,
-	}
-	return pathWithHash, nil
-}
-
-// hash returns p's hash.
-func (f *DupFinder) hash(p pathWithSize) (xxh3.Uint128, error) {
-	if p.size == 0 {
-		return emptyHash, nil
-	}
-	file, err := os.Open(p.path)
-	if err != nil {
-		return xxh3.Uint128{}, err
-	}
-	f.statistics.filesOpened.Add(1)
-	defer file.Close()
-	hash := xxh3.New()
-	written, err := io.Copy(hash, file)
-	if err != nil {
-		return xxh3.Uint128{}, err
-	}
-	f.statistics.bytesHashed.Add(uint64(written))
-	return hash.Sum128(), nil
-}
-
 func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	defer ants.Release()
 
@@ -312,4 +173,143 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 
 func (f *DupFinder) Statistics() *Statistics {
 	return &f.statistics
+}
+
+// concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
+func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
+	dirEntries, err := os.ReadDir(root)
+	if err != nil {
+		errCh <- walkDirFunc(root, nil, err)
+		return
+	}
+	f.statistics.dirEntries.Add(uint64(len(dirEntries)))
+	var wg sync.WaitGroup
+FOR:
+	for _, dirEntry := range dirEntries {
+		path := filepath.Join(root, dirEntry.Name())
+		switch err := walkDirFunc(path, dirEntry, nil); {
+		case errors.Is(err, fs.SkipAll):
+			break FOR
+		case dirEntry.IsDir() && errors.Is(err, fs.SkipDir):
+			// Skip directory.
+		case err != nil:
+			errCh <- err
+			return
+		case dirEntry.IsDir():
+			wg.Add(1)
+			_ = ants.Submit(func() {
+				defer wg.Done()
+				f.concurrentWalkDir(path, walkDirFunc, errCh)
+			})
+		}
+	}
+	wg.Wait()
+}
+
+// findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
+// there are more than threshold paths with the same size, writes them to
+// pathsToHashCh.
+func (f *DupFinder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSize, uniquePathsWithSize <-chan pathWithSize, threshold int) {
+	allPathsBySize := make(map[int64][]pathWithSize)
+	for pathWithSize := range uniquePathsWithSize {
+		pathsBySize := append(allPathsBySize[pathWithSize.size], pathWithSize) //nolint:gocritic
+		allPathsBySize[pathWithSize.size] = pathsBySize
+		if len(pathsBySize) == threshold {
+			for _, p := range pathsBySize {
+				pathsToHashCh <- p
+			}
+		} else if len(pathsBySize) > threshold {
+			pathsToHashCh <- pathWithSize
+		}
+	}
+}
+
+// findRegularFiles walks root and writes all regular files and their sizes to
+// regularFilesCh.
+func (f *DupFinder) findRegularFiles(root string, regularFilesCh chan<- pathWithSize, errCh chan<- error) {
+	walkDirFunc := func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dirEntry.Type() != 0 {
+			return nil
+		}
+		fileInfo, err := dirEntry.Info()
+		if err != nil {
+			return err
+		}
+		size := fileInfo.Size()
+		f.statistics.totalBytes.Add(uint64(size))
+		regularFilesCh <- pathWithSize{
+			path: path,
+			size: size,
+		}
+		return nil
+	}
+	f.concurrentWalkDir(root, walkDirFunc, errCh)
+}
+
+// findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before
+// ones to uniquePathsWithSize.
+func (f *DupFinder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWithSize, regularFilesCh <-chan pathWithSize) {
+	allPaths := make(map[pathWithSize]struct{})
+	for pathWithSize := range regularFilesCh {
+		if _, ok := allPaths[pathWithSize]; !ok {
+			allPaths[pathWithSize] = struct{}{}
+			uniquePathsWithSizeCh <- pathWithSize
+		}
+	}
+}
+
+// hashPathWithSize returns p's hash.
+func (f *DupFinder) hashPathWithSize(p pathWithSize) (xxh3.Uint128, error) {
+	if p.size == 0 {
+		return emptyHash, nil
+	}
+	file, err := os.Open(p.path)
+	if err != nil {
+		return xxh3.Uint128{}, err
+	}
+	f.statistics.filesOpened.Add(1)
+	defer file.Close()
+	hash := xxh3.New()
+	written, err := io.Copy(hash, file)
+	if err != nil {
+		return xxh3.Uint128{}, err
+	}
+	f.statistics.bytesHashed.Add(uint64(written))
+	return hash.Sum128(), nil
+}
+
+// hashPaths reads paths from pathsToHashCh, computes their hashes, and writes
+// them to pathsWithHashCh.
+func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
+	var wg sync.WaitGroup
+	for pathWithSize := range pathsToHashCh {
+		pathWithSize := pathWithSize
+		wg.Add(1)
+		_ = ants.Submit(func() {
+			pathWithHash, err := f.pathWithHash(pathWithSize)
+			if err != nil {
+				errCh <- err
+			} else {
+				pathsWithHashCh <- pathWithHash
+			}
+			wg.Done()
+		})
+	}
+	wg.Wait()
+}
+
+// pathWithHash hashes p and returns a pathWithHash.
+func (f *DupFinder) pathWithHash(p pathWithSize) (pathWithHash, error) {
+	hash, err := f.hashPathWithSize(p)
+	if err != nil {
+		return pathWithHash{}, err
+	}
+	pathWithHash := pathWithHash{
+		path: p.path,
+		hash: hash,
+	}
+	return pathWithHash, nil
 }
