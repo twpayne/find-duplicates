@@ -32,8 +32,6 @@ const channelBufferCapacity = 1024
 
 type hash = xxh3.Uint128
 
-var emptyHash hash
-
 // A pathWithSize contains a path to a regular file and its size.
 type pathWithSize struct {
 	path string
@@ -46,8 +44,13 @@ type pathWithHash struct {
 	hash hash
 }
 
-// xx3HashSumZero is the hash of the empty file.
-var xx3HashSumZero = xxh3.New().Sum128()
+var (
+	// zeroHash is the zero value of type hash.
+	zeroHash hash
+
+	// emptyHash is the hash of the empty file.
+	emptyHash = xxh3.New().Sum128()
+)
 
 // concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
 func concurrentWalkDir(root string, errChan chan<- error, walkDirFunc fs.WalkDirFunc) {
@@ -171,18 +174,18 @@ func (p pathWithSize) pathWithHash() (pathWithHash, error) {
 // hash returns p's hash.
 func (p pathWithSize) hash() (hash, error) {
 	if p.size == 0 {
-		return xx3HashSumZero, nil
+		return emptyHash, nil
 	}
 	file, err := os.Open(p.path)
 	if err != nil {
-		return emptyHash, err
+		return zeroHash, err
 	}
 	Stats.FilesOpened.Add(1)
 	defer file.Close()
 	hash := xxh3.New()
 	written, err := io.Copy(hash, file)
 	if err != nil {
-		return emptyHash, err
+		return zeroHash, err
 	}
 	Stats.BytesHashed.Add(uint64(written))
 	return hash.Sum128(), nil
