@@ -3,7 +3,6 @@ package dupfind
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -17,7 +16,7 @@ import (
 
 type DupFinder struct {
 	channelBufferCapacity int
-	keepGoing             bool
+	errorHandler          func(error) error
 	roots                 []string
 	threshold             int
 	statistics            Statistics
@@ -50,10 +49,9 @@ func WithChannelBufferCapacity(channelBufferCapacity int) Option {
 	}
 }
 
-// WithKeepGoing sets whether to keep going on errors.
-func WithKeepGoing(keepGoing bool) Option {
+func WithErrorHandler(errorHandler func(error) error) Option {
 	return func(f *DupFinder) {
-		f.keepGoing = keepGoing
+		f.errorHandler = errorHandler
 	}
 }
 
@@ -75,6 +73,7 @@ func WithThreshold(threshold int) Option {
 func NewDupFinder(options ...Option) *DupFinder {
 	f := &DupFinder{
 		channelBufferCapacity: 1024,
+		errorHandler:          func(err error) error { return err },
 		threshold:             2,
 	}
 	for _, option := range options {
@@ -85,21 +84,6 @@ func NewDupFinder(options ...Option) *DupFinder {
 
 func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	defer ants.Release()
-
-	var errHandler func(error) error
-	if f.keepGoing {
-		errHandler = func(err error) error {
-			if err != nil {
-				f.statistics.errors.Add(1)
-				fmt.Fprintln(os.Stderr, err)
-			}
-			return nil
-		}
-	} else {
-		errHandler = func(err error) error {
-			return err
-		}
-	}
 
 	errCh := make(chan error, f.channelBufferCapacity)
 	defer close(errCh)
@@ -170,7 +154,8 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	for {
 		select {
 		case err := <-errCh:
-			if handledErr := errHandler(err); handledErr != nil {
+			f.statistics.errors.Add(1)
+			if handledErr := f.errorHandler(err); handledErr != nil {
 				return nil, handledErr
 			}
 		case result := <-resultCh:

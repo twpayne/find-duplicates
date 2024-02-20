@@ -44,11 +44,18 @@ func run() error {
 	}
 
 	// Find duplicates.
-	dupFinder := dupfind.NewDupFinder(
+	options := []dupfind.Option{
 		dupfind.WithThreshold(*threshold),
-		dupfind.WithKeepGoing(*keepGoing),
 		dupfind.WithRoots(roots...),
-	)
+	}
+	if *keepGoing {
+		option := dupfind.WithErrorHandler(func(err error) error {
+			fmt.Fprintln(os.Stderr, err)
+			return nil
+		})
+		options = append(options, option)
+	}
+	dupFinder := dupfind.NewDupFinder(options...)
 	result, err := dupFinder.FindDuplicates()
 	if err != nil {
 		return err
