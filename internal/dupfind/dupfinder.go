@@ -14,7 +14,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/panjf2000/ants/v2"
 	"github.com/zeebo/xxh3"
 )
 
@@ -34,6 +33,8 @@ type DupFinder struct {
 		_           [minCacheLineSize - 8]byte
 		dirEntries  atomic.Uint64
 		_           [minCacheLineSize - 8]byte
+		files       atomic.Uint64
+		_           [minCacheLineSize - 8]byte
 		totalBytes  atomic.Uint64
 		_           [minCacheLineSize - 8]byte
 		filesOpened atomic.Uint64
@@ -50,6 +51,7 @@ type Option func(*DupFinder)
 type Statistics struct {
 	Errors             uint64  `json:"errors"`
 	DirEntries         uint64  `json:"dirEntries"`
+	Files              uint64  `json:"files"`
 	FilesOpened        uint64  `json:"filesOpened"`
 	FilesOpenedPercent float64 `json:"filesOpenedPercent"`
 	TotalBytes         uint64  `json:"totalBytes"`
@@ -115,8 +117,6 @@ func NewDupFinder(options ...Option) *DupFinder {
 }
 
 func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
-	defer ants.Release()
-
 	errCh := make(chan error, f.channelBufferCapacity)
 	defer close(errCh)
 
@@ -128,12 +128,10 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 		for _, root := range f.roots {
 			root := root
 			wg.Add(1)
-			if err := ants.Submit(func() {
+			go func() {
 				defer wg.Done()
 				f.findRegularFiles(root, regularFilesCh, errCh)
-			}); err != nil {
-				errCh <- err
-			}
+			}()
 		}
 		wg.Wait()
 	}()
@@ -199,6 +197,7 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 func (f *DupFinder) Statistics() *Statistics {
 	errors := f.statistics.errors.Load()
 	dirEntries := f.statistics.dirEntries.Load()
+	files := f.statistics.files.Load()
 	filesOpened := f.statistics.filesOpened.Load()
 	totalBytes := f.statistics.totalBytes.Load()
 	bytesHashed := f.statistics.bytesHashed.Load()
@@ -206,8 +205,9 @@ func (f *DupFinder) Statistics() *Statistics {
 	return &Statistics{
 		Errors:             errors,
 		DirEntries:         dirEntries,
+		Files:              files,
 		FilesOpened:        filesOpened,
-		FilesOpenedPercent: 100 * float64(filesOpened) / max(1, float64(dirEntries)),
+		FilesOpenedPercent: 100 * float64(filesOpened) / max(1, float64(files)),
 		TotalBytes:         totalBytes,
 		BytesHashed:        bytesHashed,
 		BytesHashedPercent: 100 * float64(bytesHashed) / max(1, float64(totalBytes)),
@@ -222,6 +222,13 @@ func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, e
 		return
 	}
 	f.statistics.dirEntries.Add(uint64(len(dirEntries)))
+	files := 0
+	for _, dirEntry := range dirEntries {
+		if dirEntry.Type().IsRegular() {
+			files++
+		}
+	}
+	f.statistics.files.Add(uint64(files))
 	var wg sync.WaitGroup
 FOR:
 	for _, dirEntry := range dirEntries {
@@ -236,12 +243,10 @@ FOR:
 			return
 		case dirEntry.IsDir():
 			wg.Add(1)
-			if err := ants.Submit(func() {
+			go func() {
 				defer wg.Done()
 				f.concurrentWalkDir(path, walkDirFunc, errCh)
-			}); err != nil {
-				errCh <- err
-			}
+			}()
 		}
 	}
 	wg.Wait()
@@ -329,7 +334,7 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 	for pathWithSize := range pathsToHashCh {
 		pathWithSize := pathWithSize
 		wg.Add(1)
-		if err := ants.Submit(func() {
+		go func() {
 			defer wg.Done()
 			hash, err := f.hashPath(pathWithSize)
 			if err != nil {
@@ -340,9 +345,7 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 					hash: hash,
 				}
 			}
-		}); err != nil {
-			errCh <- err
-		}
+		}()
 	}
 	wg.Wait()
 }

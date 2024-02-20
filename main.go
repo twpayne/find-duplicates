@@ -1,7 +1,6 @@
 // find-duplicates finds duplicate files, concurrently.
 package main
 
-// FIXME add tests
 // FIXME operate on io/fs.FS
 
 import (
