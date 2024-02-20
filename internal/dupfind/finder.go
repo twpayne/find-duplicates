@@ -15,16 +15,12 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
-// channelBufferCapacity is the buffer capacity between different components.
-// Larger values increase performance by allowing different components to run at
-// different speeds, at the expense of memory usage.
-const channelBufferCapacity = 1024
-
 type DupFinder struct {
-	keepGoing  bool
-	roots      []string
-	threshold  int
-	statistics Statistics
+	channelBufferCapacity int
+	keepGoing             bool
+	roots                 []string
+	threshold             int
+	statistics            Statistics
 }
 
 // An Option sets an option on a [*DupFinder].
@@ -44,6 +40,15 @@ type pathWithHash struct {
 
 // emptyHash is the hash of the empty file.
 var emptyHash = xxh3.New().Sum128()
+
+// WithChannelBufferCapacity sets the buffer capacity between different
+// components. Larger values increase performance by allowing different
+// components to run at different speeds, at the expense of memory usage.
+func WithChannelBufferCapacity(channelBufferCapacity int) Option {
+	return func(f *DupFinder) {
+		f.channelBufferCapacity = channelBufferCapacity
+	}
+}
 
 // WithKeepGoing sets whether to keep going on errors.
 func WithKeepGoing(keepGoing bool) Option {
@@ -69,7 +74,8 @@ func WithThreshold(threshold int) Option {
 // NewDupFinder returns a new [*DupFinder] with the given options.
 func NewDupFinder(options ...Option) *DupFinder {
 	f := &DupFinder{
-		threshold: 2,
+		channelBufferCapacity: 1024,
+		threshold:             2,
 	}
 	for _, option := range options {
 		option(f)
@@ -95,11 +101,11 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 		}
 	}
 
-	errCh := make(chan error, channelBufferCapacity)
+	errCh := make(chan error, f.channelBufferCapacity)
 	defer close(errCh)
 
 	// Generate paths with size.
-	regularFilesCh := make(chan pathWithSize, channelBufferCapacity)
+	regularFilesCh := make(chan pathWithSize, f.channelBufferCapacity)
 	go func() {
 		defer close(regularFilesCh)
 		var wg sync.WaitGroup
@@ -117,21 +123,21 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	}()
 
 	// Generate unique paths with size.
-	uniquePathsWithSizeCh := make(chan pathWithSize, channelBufferCapacity)
+	uniquePathsWithSizeCh := make(chan pathWithSize, f.channelBufferCapacity)
 	go func() {
 		defer close(uniquePathsWithSizeCh)
 		f.findUniquePathsWithSize(uniquePathsWithSizeCh, regularFilesCh)
 	}()
 
 	// Generate paths with size to hash.
-	pathsToHashCh := make(chan pathWithSize, channelBufferCapacity)
+	pathsToHashCh := make(chan pathWithSize, f.channelBufferCapacity)
 	go func() {
 		defer close(pathsToHashCh)
 		f.findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.threshold)
 	}()
 
 	// Generate paths with hashes.
-	pathsWithHashCh := make(chan pathWithHash, channelBufferCapacity)
+	pathsWithHashCh := make(chan pathWithHash, f.channelBufferCapacity)
 	go func() {
 		defer close(pathsWithHashCh)
 		f.hashPaths(pathsToHashCh, pathsWithHashCh, errCh)
