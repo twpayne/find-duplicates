@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/trace"
 
 	"github.com/spf13/pflag"
@@ -15,12 +16,18 @@ import (
 )
 
 func run() error {
+	numCPU := runtime.NumCPU()
+
 	// Parse command line arguments.
-	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
-	threshold := pflag.IntP("threshold", "n", 2, "threshold")
-	output := pflag.StringP("output", "o", "", "output file")
-	printStatistics := pflag.BoolP("statistics", "s", false, "print statistics")
-	traceFile := pflag.String("trace", "", "trace file")
+	var (
+		keepGoing       = pflag.BoolP("keep-going", "k", false, "keep going after errors")
+		threshold       = pflag.IntP("threshold", "n", 2, "threshold")
+		output          = pflag.StringP("output", "o", "", "output file")
+		printStatistics = pflag.BoolP("statistics", "s", false, "print statistics")
+		traceFile       = pflag.String("trace", "", "trace file")
+		hasherLimit     = pflag.IntP("hasher-limit", "h", 8*numCPU, "maximum number of hashers")
+		walkerLimit     = pflag.IntP("walker-limit", "w", 32*numCPU, "maximum number of walkers")
+	)
 	pflag.Parse()
 	var roots []string
 	if pflag.NArg() == 0 {
@@ -44,8 +51,10 @@ func run() error {
 
 	// Find duplicates.
 	options := []dupfind.Option{
-		dupfind.WithThreshold(*threshold),
+		dupfind.WithHasherLimit(*hasherLimit),
 		dupfind.WithRoots(roots...),
+		dupfind.WithThreshold(*threshold),
+		dupfind.WithWalkerLimit(*walkerLimit),
 	}
 	if *keepGoing {
 		option := dupfind.WithErrorHandler(func(err error) error {

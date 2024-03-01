@@ -133,6 +133,106 @@ func TestDupFinder(t *testing.T) {
 				BytesHashedPercent: 100,
 			},
 		},
+		{
+			name: "two_duplicates_recursive_with_walker_limit",
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "b",
+				"dir": map[string]any{
+					"gamma": "a",
+					"delta": "b",
+				},
+			},
+			options: []dupfind.Option{
+				dupfind.WithWalkerLimit(1),
+			},
+			expected: map[string][]string{
+				"4b2212e31ac97fd4575a0b1c44d8843f": {
+					"beta",
+					"dir/delta",
+				},
+				"a96faf705af16834e6c632b61e964e1f": {
+					"alpha",
+					"dir/gamma",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         5,
+				Files:              4,
+				FilesOpened:        4,
+				FilesOpenedPercent: 100,
+				TotalBytes:         4,
+				BytesHashed:        4,
+				BytesHashedPercent: 100,
+			},
+		},
+		{
+			name: "two_duplicates_recursive_with_hasher_limit",
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "b",
+				"dir": map[string]any{
+					"gamma": "a",
+					"delta": "b",
+				},
+			},
+			options: []dupfind.Option{
+				dupfind.WithHasherLimit(1),
+			},
+			expected: map[string][]string{
+				"4b2212e31ac97fd4575a0b1c44d8843f": {
+					"beta",
+					"dir/delta",
+				},
+				"a96faf705af16834e6c632b61e964e1f": {
+					"alpha",
+					"dir/gamma",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         5,
+				Files:              4,
+				FilesOpened:        4,
+				FilesOpenedPercent: 100,
+				TotalBytes:         4,
+				BytesHashed:        4,
+				BytesHashedPercent: 100,
+			},
+		},
+		{
+			name: "two_duplicates_recursive_with_walker_and_hasher_limit",
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "b",
+				"dir": map[string]any{
+					"gamma": "a",
+					"delta": "b",
+				},
+			},
+			options: []dupfind.Option{
+				dupfind.WithHasherLimit(1),
+				dupfind.WithWalkerLimit(1),
+			},
+			expected: map[string][]string{
+				"4b2212e31ac97fd4575a0b1c44d8843f": {
+					"beta",
+					"dir/delta",
+				},
+				"a96faf705af16834e6c632b61e964e1f": {
+					"alpha",
+					"dir/gamma",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         5,
+				Files:              4,
+				FilesOpened:        4,
+				FilesOpenedPercent: 100,
+				TotalBytes:         4,
+				BytesHashed:        4,
+				BytesHashedPercent: 100,
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fs, cleanup, err := vfst.NewTestFS(tc.root)

@@ -28,6 +28,8 @@ type DupFinder struct {
 	errorHandler          func(error) error
 	roots                 []string
 	threshold             int
+	walkerLimitCh         chan struct{}
+	hasherLimitCh         chan struct{}
 	statistics            struct {
 		errors      atomic.Uint64
 		_           [minCacheLineSize - 8]byte
@@ -89,6 +91,17 @@ func WithErrorHandler(errorHandler func(error) error) Option {
 	}
 }
 
+// WithHasherLimit sets the maximum number of concurrent hashers.
+func WithHasherLimit(hasherLimit int) Option {
+	return func(f *DupFinder) {
+		if hasherLimit <= 0 {
+			f.hasherLimitCh = nil
+		} else {
+			f.hasherLimitCh = make(chan struct{}, hasherLimit)
+		}
+	}
+}
+
 // WithRoots sets the roots.
 func WithRoots(roots ...string) Option {
 	return func(f *DupFinder) {
@@ -100,6 +113,17 @@ func WithRoots(roots ...string) Option {
 func WithThreshold(threshold int) Option {
 	return func(f *DupFinder) {
 		f.threshold = threshold
+	}
+}
+
+// WithWalkerLimit sets the maximum number of concurrent walkers.
+func WithWalkerLimit(walkerLimit int) Option {
+	return func(f *DupFinder) {
+		if walkerLimit <= 0 {
+			f.walkerLimitCh = nil
+		} else {
+			f.walkerLimitCh = make(chan struct{}, walkerLimit)
+		}
 	}
 }
 
@@ -216,6 +240,12 @@ func (f *DupFinder) Statistics() *Statistics {
 
 // concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
 func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
+	if f.walkerLimitCh != nil {
+		f.walkerLimitCh <- struct{}{}
+		defer func() {
+			<-f.walkerLimitCh
+		}()
+	}
 	dirEntries, err := os.ReadDir(root)
 	if err != nil {
 		errCh <- walkDirFunc(root, nil, err)
@@ -336,6 +366,12 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			if f.hasherLimitCh != nil {
+				f.hasherLimitCh <- struct{}{}
+				defer func() {
+					<-f.hasherLimitCh
+				}()
+			}
 			hash, err := f.hashPath(pathWithSize)
 			if err != nil {
 				errCh <- err
