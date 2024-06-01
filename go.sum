@@ -8,8 +8,8 @@ github.com/klauspost/cpuid/v2 v2.2.7 h1:ZWSB3igEs+d0qvnxR/ZBzXVmxkgt8DdzP6m9pfuV
 github.com/klauspost/cpuid/v2 v2.2.7/go.mod h1:Lcz8mBdAVJIBVzewtcLocK12l3Y+JytZYpaMropDUws=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=
 github.com/spf13/pflag v1.0.5/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
-github.com/twpayne/go-heap v0.0.0-20240530153615-01ca87dcdd87 h1:/BastxIh/NN4nR/wGtTUi6Kv0sg4rCk9E5JE41MOZBA=
-github.com/twpayne/go-heap v0.0.0-20240530153615-01ca87dcdd87/go.mod h1:G9Ighzdg36o788DPB7fON2iwO6gPGT76Ycqv20ldV5U=
+github.com/twpayne/go-heap v0.0.0-20240601201450-31badc9d94cd h1:tmzsr3IpUQQFevh8QNvhru+BsHaNkR+4NR/19/0UXXc=
+github.com/twpayne/go-heap v0.0.0-20240601201450-31badc9d94cd/go.mod h1:G9Ighzdg36o788DPB7fON2iwO6gPGT76Ycqv20ldV5U=
 github.com/twpayne/go-vfs/v5 v5.0.3 h1:9jeacSMvwh8sSLCuS4Ay0QmyAv1ToG1ITeQn6+Zsq1k=
 github.com/twpayne/go-vfs/v5 v5.0.3/go.mod h1:zTPFJUbgsEMFNSWnWQlLq9wh4AN83edZzx3VXbxrS1w=
 github.com/zeebo/assert v1.3.0 h1:g7C04CbJuIDKNPFHmsk4hwZDO5O+kntRxzaUoNXj+IQ=
