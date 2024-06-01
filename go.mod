@@ -5,6 +5,7 @@ go 1.22.0
 require (
 	github.com/alecthomas/assert/v2 v2.10.0
 	github.com/spf13/pflag v1.0.5
+	github.com/twpayne/go-heap v0.0.0-20240530153615-01ca87dcdd87
 	github.com/twpayne/go-vfs/v5 v5.0.3
 	github.com/zeebo/xxh3 v1.0.2
 )

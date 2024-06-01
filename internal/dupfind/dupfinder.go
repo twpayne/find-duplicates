@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/twpayne/go-heap"
 	"github.com/zeebo/xxh3"
 )
 
@@ -150,11 +151,20 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 		f.findPathsWithIdenticalSizes(pathsToHashCh, uniquePathsWithSizeCh, f.threshold)
 	}()
 
+	// Prioritize larger files. Use an un-buffered channel so that we accumulate
+	// as many pathWithSizes as possible before sending the path with the
+	// largest size.
+	prioritizedPathsToHashCh := make(chan pathWithSize)
+	go func() {
+		defer close(prioritizedPathsToHashCh)
+		f.prioritizeLargerFiles(prioritizedPathsToHashCh, pathsToHashCh)
+	}()
+
 	// Generate paths with hashes.
 	pathsWithHashCh := make(chan pathWithHash, f.channelBufferCapacity)
 	go func() {
 		defer close(pathsWithHashCh)
-		f.hashPaths(pathsToHashCh, pathsWithHashCh, errCh)
+		f.hashPaths(pathsWithHashCh, prioritizedPathsToHashCh, errCh)
 	}()
 
 	// Accumulate paths by hash.
@@ -329,7 +339,7 @@ func (f *DupFinder) hashPath(p pathWithSize) (xxh3.Uint128, error) {
 
 // hashPaths reads paths from pathsToHashCh, computes their hashes, and writes
 // them to pathsWithHashCh.
-func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh chan<- pathWithHash, errCh chan<- error) {
+func (f *DupFinder) hashPaths(pathsWithHashCh chan<- pathWithHash, pathsToHashCh <-chan pathWithSize, errCh chan<- error) {
 	var wg sync.WaitGroup
 	for pathWithSize := range pathsToHashCh {
 		pathWithSize := pathWithSize
@@ -348,4 +358,56 @@ func (f *DupFinder) hashPaths(pathsToHashCh <-chan pathWithSize, pathsWithHashCh
 		}()
 	}
 	wg.Wait()
+}
+
+func (f *DupFinder) prioritizeLargerFiles(prioritizedPathsToHashCh chan<- pathWithSize, pathWithSizeCh <-chan pathWithSize) {
+	pathWithSizesLargestFirst := heap.NewHeap(func(a, b pathWithSize) bool {
+		return a.size > b.size
+	})
+
+	// pathWithLargestSize is the next pathWithSize to send.
+	var pathWithLargestSize pathWithSize
+
+	for {
+		// If we don't already have a path with the largest size, get one.
+		if pathWithLargestSize == (pathWithSize{}) {
+			// If the heap is empty then read a pathWithSize from the input
+			// channel. Otherwise, take the path with the largest size from the
+			// heap.
+			if pathWithSizesLargestFirst.Empty() {
+				var ok bool
+				pathWithLargestSize, ok = <-pathWithSizeCh
+				if !ok {
+					return
+				}
+			} else {
+				pathWithLargestSize, _ = pathWithSizesLargestFirst.Pop()
+			}
+		}
+
+		// Either send the path with the largest size to the output channel, or
+		// read another pathWithSize from the input channel, add it to heap, and
+		// find the new path with largest size.
+		select {
+		case prioritizedPathsToHashCh <- pathWithLargestSize:
+			// The prioritized pathWithSize was sent, so zero it so we get the
+			// next one in the next iteration.
+			pathWithLargestSize = pathWithSize{}
+		case pathWithSize, ok := <-pathWithSizeCh:
+			// The path with the largest size was not sent so push it back onto
+			// the heap.
+			pathWithSizesLargestFirst.Push(pathWithLargestSize)
+			// If the input channel is closed then write the remaining
+			// pathWithSizes in the heap to the output channel and return.
+			if !ok {
+				for _, pathWithSize := range pathWithSizesLargestFirst.PopAll() {
+					prioritizedPathsToHashCh <- pathWithSize
+				}
+				return
+			}
+			// Otherwise, add the new pathWithSize to the heap and update the
+			// next pathWithSize to send.
+			pathWithLargestSize = pathWithSizesLargestFirst.PushPop(pathWithSize)
+		}
+	}
 }

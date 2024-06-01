@@ -58,7 +58,9 @@ It consists of multiple components:
 2. Secondly, with the observation that files can only be duplicates if they are
    the same size, it only reads file contents once it has found at more than one
    file with the same size. This significantly reduces both the number of
-   syscalls and the amount of data read.
+   syscalls and the amount of data read. Furthermore, as the shortest possible
+   runtime is the time taken to read the largest file, larger files are read
+   earlier.
 3. Thirdly, files contents are hashed with a fast, non-cryptographic hash.
 
 All components run concurrently.
