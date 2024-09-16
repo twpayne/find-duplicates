@@ -16,12 +16,8 @@ import (
 
 	"github.com/twpayne/go-heap/prioritychannel"
 	"github.com/zeebo/xxh3"
+	"golang.org/x/sys/cpu"
 )
-
-// minCacheLineSize is the minimum cache line size, used to prevent false
-// sharing. Smaller values have an insignificant effect on memory usage. Larger
-// values help separate values into separate cache lines.
-const minCacheLineSize = 128
 
 // A DupFinder finds duplicate files.
 type DupFinder struct {
@@ -31,17 +27,17 @@ type DupFinder struct {
 	threshold             int
 	statistics            struct {
 		errors      atomic.Uint64
-		_           [minCacheLineSize - 8]byte
+		_           cpu.CacheLinePad
 		dirEntries  atomic.Uint64
-		_           [minCacheLineSize - 8]byte
+		_           cpu.CacheLinePad
 		files       atomic.Uint64
-		_           [minCacheLineSize - 8]byte
+		_           cpu.CacheLinePad
 		totalBytes  atomic.Uint64
-		_           [minCacheLineSize - 8]byte
+		_           cpu.CacheLinePad
 		filesOpened atomic.Uint64
-		_           [minCacheLineSize - 8]byte
+		_           cpu.CacheLinePad
 		bytesHashed atomic.Uint64
-		_           [minCacheLineSize - 8]byte
+		_           cpu.CacheLinePad
 	}
 }
 

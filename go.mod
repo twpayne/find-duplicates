@@ -8,11 +8,11 @@ require (
 	github.com/twpayne/go-heap v0.0.0-20240601201450-31badc9d94cd
 	github.com/twpayne/go-vfs/v5 v5.0.3
 	github.com/zeebo/xxh3 v1.0.2
+	golang.org/x/sys v0.25.0
 )
 
 require (
 	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
-	golang.org/x/sys v0.20.0 // indirect
 )
