@@ -14,8 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
-      with:
-        go-version: '1.22'
     - name: build
       run: go build ./...
     - name: test
@@ -25,8 +23,6 @@ jobs:
     steps:
     - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
     - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
-      with:
-        go-version: '1.22'
     - uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8
       with:
-        version: v1.56.2
+        version: v1.61.0

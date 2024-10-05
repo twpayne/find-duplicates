@@ -1,4 +1,5 @@
-go: '1.22'
+run:
+  go: '1.23'
 
 linters:
   enable:
@@ -6,8 +7,10 @@ linters:
   - asciicheck
   - bidichk
   - bodyclose
+  - canonicalheader
   - containedctx
   - contextcheck
+  - copyloopvar
   - decorder
   - dogsled
   - dupl
@@ -17,14 +20,14 @@ linters:
   - errchkjson
   - errname
   - errorlint
-  - execinquery
   - exhaustive
-  - exportloopref
+  - fatcontext
   - forcetypeassert
   - gci
   - ginkgolinter
   - gocheckcompilerdirectives
   - gochecknoinits
+  - gochecksumtype
   - gocritic
   - godot
   - gofmt
@@ -36,14 +39,18 @@ linters:
   - goprintffuncname
   - gosec
   - gosimple
+  - gosmopolitan
   - govet
   - grouper
   - importas
+  - inamedparam
   - ineffassign
   - interfacebloat
+  - intrange
   - ireturn
   - loggercheck
   - makezero
+  - mirror
   - misspell
   - musttag
   - nakedret
@@ -53,28 +60,37 @@ linters:
   - nolintlint
   - nonamedreturns
   - nosprintfhostport
+  - perfsprint
   - prealloc
   - predeclared
   - promlinter
+  - protogetter
   - reassign
   - revive
   - rowserrcheck
+  - sloglint
+  - spancheck
   - sqlclosecheck
   - staticcheck
   - stylecheck
+  - tagalign
   - tagliatelle
   - tenv
   - testableexamples
+  - testifylint
   - thelper
   - typecheck
   - unconvert
   - unparam
   - unused
   - usestdlibvars
+  - wastedassign
   - whitespace
+  - zerologlint
   disable:
   - cyclop
   - depguard
+  - err113
   - exhaustruct
   - forbidigo
   - funlen
@@ -83,15 +99,15 @@ linters:
   - goconst
   - gocyclo
   - godox
-  - goerr113
   - gomnd
   - lll
   - maintidx
-  - maligned
+  - mnd
   - nestif
   - nlreturn
   - paralleltest
   - testpackage
+  - tparallel
   - varnamelen
   - wrapcheck
   - wsl
