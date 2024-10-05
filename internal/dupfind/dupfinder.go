@@ -14,7 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/twpayne/go-heap/prioritychannel"
+	"github.com/twpayne/go-heap"
 	"github.com/zeebo/xxh3"
 	"golang.org/x/sys/cpu"
 )
@@ -150,13 +150,9 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	// Prioritize larger files. Use an un-buffered channel so that we accumulate
 	// as many pathWithSizes as possible before sending the path with the
 	// largest size.
-	prioritizedPathsToHashCh := make(chan pathWithSize)
-	go func() {
-		defer close(prioritizedPathsToHashCh)
-		prioritychannel.NewPriorityChannel(prioritychannel.WithLessFunc(func(a, b pathWithSize) bool {
-			return a.size > b.size
-		})).Run(prioritizedPathsToHashCh, pathsToHashCh)
-	}()
+	prioritizedPathsToHashCh := heap.PriorityChannel(pathsToHashCh, func(a, b pathWithSize) bool {
+		return a.size > b.size
+	})
 
 	// Generate paths with hashes.
 	pathsWithHashCh := make(chan pathWithHash, f.channelBufferCapacity)
