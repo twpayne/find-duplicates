@@ -4,6 +4,7 @@ package dupfind
 // FIXME when keeping going despite errors this code can panic with "write to closed channel" as DupFinder.FindDuplicates closes channels while goroutines are still running
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -113,7 +114,7 @@ func NewDupFinder(options ...Option) *DupFinder {
 	return f
 }
 
-func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
+func (f *DupFinder) FindDuplicates(ctx context.Context) (map[string][]string, error) {
 	errCh := make(chan error, f.channelBufferCapacity)
 	defer close(errCh)
 
@@ -149,7 +150,7 @@ func (f *DupFinder) FindDuplicates() (map[string][]string, error) {
 	// Prioritize larger files. Use an un-buffered channel so that we accumulate
 	// as many pathWithSizes as possible before sending the path with the
 	// largest size.
-	prioritizedPathsToHashCh := heap.PriorityChannel(pathsToHashCh, func(a, b pathWithSize) bool {
+	prioritizedPathsToHashCh := heap.PriorityChannel(ctx, pathsToHashCh, func(a, b pathWithSize) bool {
 		return a.size > b.size
 	})
 

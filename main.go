@@ -4,6 +4,7 @@ package main
 // FIXME operate on io/fs.FS
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +16,8 @@ import (
 )
 
 func run() error {
+	ctx := context.Background()
+
 	// Parse command line arguments.
 	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
@@ -55,7 +58,7 @@ func run() error {
 		options = append(options, option)
 	}
 	dupFinder := dupfind.NewDupFinder(options...)
-	result, err := dupFinder.FindDuplicates()
+	result, err := dupFinder.FindDuplicates(ctx)
 	if err != nil {
 		return err
 	}

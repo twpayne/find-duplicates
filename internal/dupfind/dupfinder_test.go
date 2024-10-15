@@ -1,6 +1,7 @@
 package dupfind_test
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -135,6 +136,8 @@ func TestDupFinder(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
 			fs, cleanup, err := vfst.NewTestFS(tc.root)
 			assert.NoError(t, err)
 			defer cleanup()
@@ -142,7 +145,7 @@ func TestDupFinder(t *testing.T) {
 			options := slices.Clone(tc.options)
 			options = append(options, dupfind.WithRoots(fs.TempDir()))
 			dupFinder := dupfind.NewDupFinder(options...)
-			actual, err := dupFinder.FindDuplicates()
+			actual, err := dupFinder.FindDuplicates(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, trimValuePrefixes(actual, fs.TempDir()+"/"))
 
