@@ -1,5 +1,5 @@
 run:
-  go: '1.23'
+  go: '1.24'
 
 linters:
   enable:
@@ -21,6 +21,7 @@ linters:
   - errname
   - errorlint
   - exhaustive
+  - exptostd
   - fatcontext
   - forcetypeassert
   - gci
@@ -42,6 +43,7 @@ linters:
   - gosmopolitan
   - govet
   - grouper
+  - iface
   - importas
   - inamedparam
   - ineffassign
@@ -55,6 +57,7 @@ linters:
   - musttag
   - nakedret
   - nilerr
+  - nilnesserr
   - nilnil
   - noctx
   - nolintlint
@@ -66,6 +69,7 @@ linters:
   - promlinter
   - protogetter
   - reassign
+  - recvcheck
   - revive
   - rowserrcheck
   - sloglint
@@ -75,7 +79,6 @@ linters:
   - stylecheck
   - tagalign
   - tagliatelle
-  - tenv
   - testableexamples
   - testifylint
   - thelper
@@ -84,6 +87,7 @@ linters:
   - unparam
   - unused
   - usestdlibvars
+  - usetesting
   - wastedassign
   - whitespace
   - zerologlint
@@ -99,7 +103,6 @@ linters:
   - goconst
   - gocyclo
   - godox
-  - gomnd
   - lll
   - maintidx
   - mnd

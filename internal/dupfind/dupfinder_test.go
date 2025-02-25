@@ -1,7 +1,6 @@
 package dupfind_test
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -141,7 +140,7 @@ func TestDupFinder(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			fs, cleanup, err := vfst.NewTestFS(tc.root)
 			assert.NoError(t, err)
