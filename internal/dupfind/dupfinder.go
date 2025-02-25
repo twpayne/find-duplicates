@@ -39,6 +39,8 @@ type DupFinder struct {
 		_           cpu.CacheLinePad
 		bytesHashed atomic.Uint64
 		_           cpu.CacheLinePad
+		uniqueSizes atomic.Uint64
+		_           cpu.CacheLinePad
 	}
 }
 
@@ -55,6 +57,7 @@ type Statistics struct {
 	TotalBytes         uint64  `json:"totalBytes"`
 	BytesHashed        uint64  `json:"bytesHashed"`
 	BytesHashedPercent float64 `json:"bytesHashedPercent"`
+	UniqueSizes        uint64  `json:"uniqueSizes"`
 }
 
 // A pathWithSize contains a path to a regular file and its size.
@@ -205,6 +208,7 @@ func (f *DupFinder) Statistics() *Statistics {
 	filesOpened := f.statistics.filesOpened.Load()
 	totalBytes := f.statistics.totalBytes.Load()
 	bytesHashed := f.statistics.bytesHashed.Load()
+	uniqueSizes := f.statistics.uniqueSizes.Load()
 
 	return &Statistics{
 		Errors:             errors,
@@ -215,6 +219,7 @@ func (f *DupFinder) Statistics() *Statistics {
 		TotalBytes:         totalBytes,
 		BytesHashed:        bytesHashed,
 		BytesHashedPercent: 100 * float64(bytesHashed) / max(1, float64(totalBytes)),
+		UniqueSizes:        uniqueSizes,
 	}
 }
 
@@ -272,6 +277,7 @@ func (f *DupFinder) findPathsWithIdenticalSizes(pathsToHashCh chan<- pathWithSiz
 			pathsToHashCh <- pathWithSize
 		}
 	}
+	f.statistics.uniqueSizes.Add(uint64(len(allPathsBySize)))
 }
 
 // findRegularFiles walks root and writes all regular files and their sizes to

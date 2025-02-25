@@ -31,9 +31,10 @@ func TestDupFinder(t *testing.T) {
 			},
 			expected: map[string][]string{},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries: 1,
-				Files:      1,
-				TotalBytes: 1,
+				DirEntries:  1,
+				Files:       1,
+				TotalBytes:  1,
+				UniqueSizes: 1,
 			},
 		},
 		{
@@ -57,6 +58,7 @@ func TestDupFinder(t *testing.T) {
 				TotalBytes:         4,
 				BytesHashed:        2,
 				BytesHashedPercent: 50,
+				UniqueSizes:        2,
 			},
 		},
 		{
@@ -80,6 +82,7 @@ func TestDupFinder(t *testing.T) {
 				TotalBytes:         3,
 				BytesHashed:        3,
 				BytesHashedPercent: 100,
+				UniqueSizes:        1,
 			},
 		},
 		{
@@ -104,6 +107,7 @@ func TestDupFinder(t *testing.T) {
 				TotalBytes:         2,
 				BytesHashed:        2,
 				BytesHashedPercent: 100,
+				UniqueSizes:        1,
 			},
 		},
 		{
@@ -132,6 +136,7 @@ func TestDupFinder(t *testing.T) {
 				TotalBytes:         4,
 				BytesHashed:        4,
 				BytesHashedPercent: 100,
+				UniqueSizes:        1,
 			},
 		},
 	} {
