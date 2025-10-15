@@ -1,128 +1,140 @@
+version: "2"
 run:
-  go: '1.24'
-
+  go: "1.25"
 linters:
   enable:
-  - asasalint
-  - asciicheck
-  - bidichk
-  - bodyclose
-  - canonicalheader
-  - containedctx
-  - contextcheck
-  - copyloopvar
-  - decorder
-  - dogsled
-  - dupl
-  - dupword
-  - durationcheck
-  - errcheck
-  - errchkjson
-  - errname
-  - errorlint
-  - exhaustive
-  - exptostd
-  - fatcontext
-  - forcetypeassert
-  - gci
-  - ginkgolinter
-  - gocheckcompilerdirectives
-  - gochecknoinits
-  - gochecksumtype
-  - gocritic
-  - godot
-  - gofmt
-  - gofumpt
-  - goheader
-  - goimports
-  - gomoddirectives
-  - gomodguard
-  - goprintffuncname
-  - gosec
-  - gosimple
-  - gosmopolitan
-  - govet
-  - grouper
-  - iface
-  - importas
-  - inamedparam
-  - ineffassign
-  - interfacebloat
-  - intrange
-  - ireturn
-  - loggercheck
-  - makezero
-  - mirror
-  - misspell
-  - musttag
-  - nakedret
-  - nilerr
-  - nilnesserr
-  - nilnil
-  - noctx
-  - nolintlint
-  - nonamedreturns
-  - nosprintfhostport
-  - perfsprint
-  - prealloc
-  - predeclared
-  - promlinter
-  - protogetter
-  - reassign
-  - recvcheck
-  - revive
-  - rowserrcheck
-  - sloglint
-  - spancheck
-  - sqlclosecheck
-  - staticcheck
-  - stylecheck
-  - tagalign
-  - tagliatelle
-  - testableexamples
-  - testifylint
-  - thelper
-  - typecheck
-  - unconvert
-  - unparam
-  - unused
-  - usestdlibvars
-  - usetesting
-  - wastedassign
-  - whitespace
-  - zerologlint
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - gochecksumtype
+    - gocritic
+    - godot
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - interfacebloat
+    - intrange
+    - ireturn
+    - loggercheck
+    - makezero
+    - mirror
+    - misspell
+    - musttag
+    - nakedret
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagalign
+    - tagliatelle
+    - testableexamples
+    - testifylint
+    - thelper
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    - zerologlint
   disable:
-  - cyclop
-  - depguard
-  - err113
-  - exhaustruct
-  - forbidigo
-  - funlen
-  - gochecknoglobals
-  - gocognit
-  - goconst
-  - gocyclo
-  - godox
-  - lll
-  - maintidx
-  - mnd
-  - nestif
-  - nlreturn
-  - paralleltest
-  - testpackage
-  - tparallel
-  - varnamelen
-  - wrapcheck
-  - wsl
-
-linters-settings:
-  gci:
-    sections:
-    - standard
-    - default
-    - prefix(github.com/twpayne/find-duplicates)
-  gofumpt:
-    extra-rules: true
-    module-path: github.com/twpayne/find-duplicates
-  goimports:
-    local-prefixes: github.com/twpayne/find-duplicates
+    - cyclop
+    - depguard
+    - err113
+    - exhaustruct
+    - forbidigo
+    - funlen
+    - gochecknoglobals
+    - gocognit
+    - goconst
+    - gocyclo
+    - godox
+    - lll
+    - maintidx
+    - mnd
+    - nestif
+    - nlreturn
+    - paralleltest
+    - testpackage
+    - tparallel
+    - varnamelen
+    - wrapcheck
+    - wsl
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/twpayne/find-duplicates)
+    gofumpt:
+      module-path: github.com/twpayne/find-duplicates
+      extra-rules: true
+    goimports:
+      local-prefixes:
+        - github.com/twpayne/find-duplicates
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
