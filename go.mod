@@ -2,6 +2,8 @@ module github.com/twpayne/find-duplicates
 
 go 1.25.0
 
+tool github.com/twpayne/find-duplicates
+
 require (
 	github.com/alecthomas/assert/v2 v2.10.0
 	github.com/spf13/pflag v1.0.6
