@@ -127,11 +127,9 @@ func (f *DupFinder) FindDuplicates(ctx context.Context) (map[string][]string, er
 		defer close(regularFilesCh)
 		var wg sync.WaitGroup
 		for _, root := range f.roots {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				f.findRegularFiles(root, regularFilesCh, errCh)
-			}()
+			})
 		}
 		wg.Wait()
 	}()
@@ -251,11 +249,9 @@ FOR:
 			errCh <- err
 			return
 		case dirEntry.IsDir():
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				f.concurrentWalkDir(path, walkDirFunc, errCh)
-			}()
+			})
 		}
 	}
 	wg.Wait()
@@ -342,9 +338,7 @@ func (f *DupFinder) hashPath(p pathWithSize) (xxh3.Uint128, error) {
 func (f *DupFinder) hashPaths(pathsWithHashCh chan<- pathWithHash, pathsToHashCh <-chan pathWithSize, errCh chan<- error) {
 	var wg sync.WaitGroup
 	for pathWithSize := range pathsToHashCh {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			hash, err := f.hashPath(pathWithSize)
 			if err != nil {
 				errCh <- err
@@ -354,7 +348,7 @@ func (f *DupFinder) hashPaths(pathsWithHashCh chan<- pathWithHash, pathsToHashCh
 					hash: hash,
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
