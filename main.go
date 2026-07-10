@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime/trace"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/pflag"
 
 	"github.com/twpayne/find-duplicates/internal/dupfind"
@@ -19,6 +20,7 @@ func run() error {
 	ctx := context.Background()
 
 	// Parse command line arguments.
+	excludePatterns := pflag.StringSliceP("exclude", "x", nil, "exclude patterns")
 	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
 	output := pflag.StringP("output", "o", "", "output file")
@@ -45,8 +47,22 @@ func run() error {
 		defer trace.Stop()
 	}
 
+	for _, excludePattern := range *excludePatterns {
+		if !doublestar.ValidatePattern(excludePattern) {
+			return fmt.Errorf("%s: invalid pattern", excludePattern)
+		}
+	}
+
 	// Find duplicates.
 	options := []dupfind.Option{
+		dupfind.WithIncludeFunc(func(path string) bool {
+			for _, excludePattern := range *excludePatterns {
+				if doublestar.MatchUnvalidated(excludePattern, path) {
+					return false
+				}
+			}
+			return true
+		}),
 		dupfind.WithThreshold(*threshold),
 		dupfind.WithRoots(roots...),
 	}

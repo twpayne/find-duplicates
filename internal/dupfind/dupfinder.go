@@ -23,6 +23,7 @@ import (
 // A DupFinder finds duplicate files.
 type DupFinder struct {
 	channelBufferCapacity int
+	includeFunc           func(string) bool
 	errorHandler          func(error) error
 	roots                 []string
 	threshold             int
@@ -87,6 +88,14 @@ func WithChannelBufferCapacity(channelBufferCapacity int) Option {
 func WithErrorHandler(errorHandler func(error) error) Option {
 	return func(f *DupFinder) {
 		f.errorHandler = errorHandler
+	}
+}
+
+// WithIncludeFunc sets the function that determines whether paths are included.
+// If not set, all paths are included.
+func WithIncludeFunc(includeFunc func(string) bool) Option {
+	return func(f *DupFinder) {
+		f.includeFunc = includeFunc
 	}
 }
 
@@ -282,6 +291,14 @@ func (f *DupFinder) findRegularFiles(root string, regularFilesCh chan<- pathWith
 	walkDirFunc := func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if f.includeFunc != nil && !f.includeFunc(path) {
+			switch {
+			case dirEntry.Type().IsDir():
+				return fs.SkipDir
+			default:
+				return nil
+			}
 		}
 		if dirEntry.Type() != 0 {
 			return nil

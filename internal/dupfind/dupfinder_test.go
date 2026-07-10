@@ -1,6 +1,7 @@
 package dupfind_test
 
 import (
+	"path"
 	"slices"
 	"strings"
 	"testing"
@@ -134,6 +135,70 @@ func TestDupFinder(t *testing.T) {
 				FilesOpenedPercent: 100,
 				TotalBytes:         4,
 				BytesHashed:        4,
+				BytesHashedPercent: 100,
+				UniqueSizes:        1,
+			},
+		},
+		{
+			name: "exclude_pattern",
+			options: []dupfind.Option{
+				dupfind.WithIncludeFunc(func(p string) bool {
+					_, basename := path.Split(p)
+					return basename != "delta"
+				}),
+			},
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "a",
+				"gamma": "b",
+				"delta": "b",
+			},
+			expected: map[string][]string{
+				"a96faf705af16834e6c632b61e964e1f": {
+					"alpha",
+					"beta",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         4,
+				Files:              4,
+				FilesOpened:        3,
+				FilesOpenedPercent: 75,
+				TotalBytes:         3,
+				BytesHashed:        3,
+				BytesHashedPercent: 100,
+				UniqueSizes:        1,
+			},
+		},
+		{
+			name: "exclude_pattern_dir",
+			options: []dupfind.Option{
+				dupfind.WithIncludeFunc(func(p string) bool {
+					_, basename := path.Split(p)
+					return basename != "x"
+				}),
+			},
+			root: map[string]any{
+				"alpha":   "a",
+				"beta":    "a",
+				"x/alpha": "a",
+				"x/beta":  "b",
+				"y/alpha": "a",
+			},
+			expected: map[string][]string{
+				"a96faf705af16834e6c632b61e964e1f": {
+					"alpha",
+					"beta",
+					"y/alpha",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         5,
+				Files:              3,
+				FilesOpened:        3,
+				FilesOpenedPercent: 100,
+				TotalBytes:         3,
+				BytesHashed:        3,
 				BytesHashedPercent: 100,
 				UniqueSizes:        1,
 			},
