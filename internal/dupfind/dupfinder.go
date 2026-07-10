@@ -235,7 +235,7 @@ func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, e
 			files++
 		}
 	}
-	f.statistics.files.Add(uint64(files)) //nolint:gosec
+	f.statistics.files.Add(uint64(files))
 	var wg sync.WaitGroup
 FOR:
 	for _, dirEntry := range dirEntries {
