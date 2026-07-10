@@ -6,6 +6,7 @@ tool github.com/twpayne/find-duplicates
 
 require (
 	github.com/alecthomas/assert/v2 v2.11.0
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/spf13/pflag v1.0.10
 	github.com/twpayne/go-heap v1.0.0
 	github.com/twpayne/go-vfs/v5 v5.0.5

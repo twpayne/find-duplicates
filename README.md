@@ -36,6 +36,9 @@ arrays of filenames with contents with that xxHash.
 
 Options are:
 
+`--exclude=<pattern>` or `-x <pattern>` exclude files and directories matching
+`<pattern>`.
+
 `--keep-going` or `-k` keep going after errors.
 
 `--output=<file>` or `-o <file>` write output to `<file>`, default is stdout.
