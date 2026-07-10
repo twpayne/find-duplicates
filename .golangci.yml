@@ -16,6 +16,7 @@ linters:
     - dupl
     - dupword
     - durationcheck
+    - embeddedstructfieldcheck
     - errchkjson
     - errname
     - errorlint
@@ -23,6 +24,7 @@ linters:
     - exptostd
     - fatcontext
     - forcetypeassert
+    - funcorder
     - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoinits
@@ -31,7 +33,7 @@ linters:
     - godot
     - goheader
     - gomoddirectives
-    - gomodguard
+    - gomodguard_v2
     - goprintffuncname
     - gosec
     - gosmopolitan
@@ -41,11 +43,13 @@ linters:
     - inamedparam
     - interfacebloat
     - intrange
+    - iotamixing
     - ireturn
     - loggercheck
     - makezero
     - mirror
     - misspell
+    - modernize
     - musttag
     - nakedret
     - nilerr
@@ -81,6 +85,8 @@ linters:
     - whitespace
     - zerologlint
   disable:
+    - arangolint
+    - clickhouselint
     - cyclop
     - depguard
     - err113
@@ -100,9 +106,10 @@ linters:
     - paralleltest
     - testpackage
     - tparallel
+    - unqueryvet
     - varnamelen
     - wrapcheck
-    - wsl
+    - wsl_v5
   exclusions:
     generated: lax
     presets:
