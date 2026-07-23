@@ -5,22 +5,34 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"os"
 	"runtime/trace"
+	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/pflag"
+	"github.com/zeebo/xxh3"
 
 	"github.com/twpayne/find-duplicates/internal/dupfind"
 )
+
+var hashFuncs = map[string]func() hash.Hash{
+	"sha256": sha256.New,
+	"sha512": sha512.New,
+	"xxhash": func() hash.Hash { return xxh3.New() },
+}
 
 func run() error {
 	ctx := context.Background()
 
 	// Parse command line arguments.
 	excludePatterns := pflag.StringSliceP("exclude", "x", nil, "exclude patterns")
+	hash := pflag.StringP("hash", "h", "xxhash", "hash to use (sha256, sha512, or xxhash)")
 	keepGoing := pflag.BoolP("keep-going", "k", false, "keep going after errors")
 	threshold := pflag.IntP("threshold", "n", 2, "threshold")
 	output := pflag.StringP("output", "o", "", "output file")
@@ -54,7 +66,12 @@ func run() error {
 	}
 
 	// Find duplicates.
+	hashFunc, ok := hashFuncs[strings.ToLower(*hash)]
+	if !ok {
+		return fmt.Errorf("%s: invalid hash", *hash)
+	}
 	options := []dupfind.Option{
+		dupfind.WithHashFunc(hashFunc),
 		dupfind.WithIncludeFunc(func(path string) bool {
 			for _, excludePattern := range *excludePatterns {
 				if doublestar.MatchUnvalidated(excludePattern, path) {
