@@ -30,6 +30,7 @@ linters:
     - gochecknoinits
     - gochecksumtype
     - gocritic
+    - godoclint
     - godot
     - goheader
     - gomoddirectives
@@ -103,6 +104,7 @@ linters:
     - mnd
     - nestif
     - nlreturn
+    - noinlineerr
     - paralleltest
     - testpackage
     - tparallel
