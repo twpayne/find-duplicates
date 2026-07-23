@@ -1,7 +1,7 @@
 # `find-duplicates`
 
-`find-duplicates` finds duplicate files quickly based on the
-[xxHashes](https://xxhash.com/) of their contents.
+`find-duplicates` finds duplicate files quickly based on the hashes of their
+contents.
 
 ## Installation
 
@@ -14,7 +14,7 @@ $ go install github.com/twpayne/find-duplicates@latest
 ```console
 $ find-duplicates
 {
-  "cdb8979062cbdf9c169563ccc54704f0": [
+  "6759e894b4289181": [
     ".git/refs/remotes/origin/main",
     ".git/refs/heads/main",
     ".git/ORIG_HEAD"
@@ -31,13 +31,16 @@ find-duplicates [options] [paths...]
 `paths` are directories to walk recursively. If no `paths` are given then the
 current directory is walked.
 
-The output is a JSON object with properties for each observed xxHash and values
-arrays of filenames with contents with that xxHash.
+The output is a JSON object with properties for each observed hash and values
+arrays of filenames with contents with that hash.
 
 Options are:
 
 `--exclude=<pattern>` or `-x <pattern>` exclude files and directories matching
 `<pattern>`.
+
+`--hash=<hash>` or `-h <hash>` set the hash. The default `<hash>` is
+[`xxhash`](https://xxhash.com/). Other options are `sha256` and `sha512`.
 
 `--keep-going` or `-k` keep going after errors.
 
@@ -56,15 +59,18 @@ machine.
 
 It consists of multiple components:
 
-1. Firstly, it walks the the filesystem concurrently, spawning one goroutine per
-   subdirectory.
-2. Secondly, with the observation that files can only be duplicates if they are
-   the same size, it only reads file contents once it has found at more than one
-   file with the same size. This significantly reduces both the number of
-   syscalls and the amount of data read. Furthermore, as the shortest possible
-   runtime is the time taken to read the largest file, larger files are read
-   earlier.
-3. Thirdly, files contents are hashed with a fast, non-cryptographic hash.
+* Firstly, it walks the the filesystem concurrently, spawning one goroutine per
+  subdirectory.
+
+* Secondly, with the observation that files can only be duplicates if they have
+  the same size, it only reads file contents once it has found at more than one
+  file with the same size. This significantly reduces both the number of
+  syscalls and the amount of data read. Furthermore, as the shortest possible
+  runtime is the time taken to read the largest file, larger files are read
+  earlier.
+
+* Thirdly, by default, file contents are hashed with a fast, non-cryptographic
+  hash.
 
 All components run concurrently.
 

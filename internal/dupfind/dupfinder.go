@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"hash"
 	"io"
 	"io/fs"
 	"os"
@@ -16,13 +17,14 @@ import (
 	"sync/atomic"
 
 	"github.com/twpayne/go-heap"
-	"github.com/zeebo/xxh3"
 	"golang.org/x/sys/cpu"
 )
 
 // A DupFinder finds duplicate files.
 type DupFinder struct {
 	channelBufferCapacity int
+	newHashFunc           func() hash.Hash
+	emptyHash             string
 	includeFunc           func(string) bool
 	errorHandler          func(error) error
 	roots                 []string
@@ -70,11 +72,8 @@ type pathWithSize struct {
 // A pathWithHash contains a path to a regular file and its hash.
 type pathWithHash struct {
 	path string
-	hash xxh3.Uint128
+	hash string
 }
-
-// emptyHash is the hash of the empty file.
-var emptyHash = xxh3.New().Sum128()
 
 // WithChannelBufferCapacity sets the buffer capacity between different
 // components. Larger values increase performance by allowing different
@@ -88,6 +87,14 @@ func WithChannelBufferCapacity(channelBufferCapacity int) Option {
 func WithErrorHandler(errorHandler func(error) error) Option {
 	return func(f *DupFinder) {
 		f.errorHandler = errorHandler
+	}
+}
+
+// WithHashFunc sets the hash.
+func WithHashFunc(hashFunc func() hash.Hash) Option {
+	return func(f *DupFinder) {
+		f.newHashFunc = hashFunc
+		f.emptyHash = string(hashFunc().Sum(nil))
 	}
 }
 
@@ -172,7 +179,7 @@ func (f *DupFinder) FindDuplicates(ctx context.Context) (map[string][]string, er
 	}()
 
 	// Accumulate paths by hash.
-	pathsByHash := make(map[xxh3.Uint128][]string)
+	pathsByHash := make(map[string][]string)
 	resultCh := make(chan map[string][]string)
 	go func() {
 		defer close(resultCh)
@@ -185,10 +192,8 @@ func (f *DupFinder) FindDuplicates(ctx context.Context) (map[string][]string, er
 		result := make(map[string][]string, len(pathsByHash))
 		for hash, paths := range pathsByHash {
 			if len(paths) >= f.threshold {
-				bytes := hash.Bytes()
-				key := hex.EncodeToString(bytes[:])
 				slices.Sort(paths)
-				result[key] = paths
+				result[hex.EncodeToString([]byte(hash))] = paths
 			}
 		}
 		resultCh <- result
@@ -331,23 +336,23 @@ func (f *DupFinder) findUniquePathsWithSize(uniquePathsWithSizeCh chan<- pathWit
 }
 
 // hashPath returns p's hash.
-func (f *DupFinder) hashPath(p pathWithSize) (xxh3.Uint128, error) {
+func (f *DupFinder) hashPath(p pathWithSize) (string, error) {
 	if p.size == 0 {
-		return emptyHash, nil
+		return f.emptyHash, nil
 	}
 	f.statistics.filesOpened.Add(1)
 	file, err := os.Open(p.path)
 	if err != nil {
-		return xxh3.Uint128{}, err
+		return "", err
 	}
 	defer file.Close()
-	hash := xxh3.New()
+	hash := f.newHashFunc()
 	written, err := io.Copy(hash, file)
 	if err != nil {
-		return xxh3.Uint128{}, err
+		return "", err
 	}
 	f.statistics.bytesHashed.Add(uint64(written)) //nolint:gosec
-	return hash.Sum128(), nil
+	return string(hash.Sum(nil)), nil
 }
 
 // hashPaths reads paths from pathsToHashCh, computes their hashes, and writes

@@ -1,6 +1,9 @@
 package dupfind_test
 
 import (
+	"crypto/sha256"
+	"crypto/sha512"
+	"hash"
 	"path"
 	"slices"
 	"strings"
@@ -8,6 +11,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"github.com/zeebo/xxh3"
 
 	"github.com/twpayne/find-duplicates/internal/dupfind"
 )
@@ -22,6 +26,7 @@ func TestDupFinder(t *testing.T) {
 	}{
 		{
 			name:     "empty",
+			options:  []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{},
 		},
 		{
@@ -29,6 +34,7 @@ func TestDupFinder(t *testing.T) {
 			root: map[string]any{
 				"alpha": "a",
 			},
+			options:  []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries:  1,
@@ -44,8 +50,9 @@ func TestDupFinder(t *testing.T) {
 				"beta":  "a",
 				"gamma": "aa",
 			},
+			options: []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{
-				"a96faf705af16834e6c632b61e964e1f": {
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
 					"alpha",
 					"beta",
 				},
@@ -68,8 +75,9 @@ func TestDupFinder(t *testing.T) {
 				"beta":  "a",
 				"gamma": "b",
 			},
+			options: []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{
-				"a96faf705af16834e6c632b61e964e1f": {
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
 					"alpha",
 					"beta",
 				},
@@ -93,8 +101,9 @@ func TestDupFinder(t *testing.T) {
 					"beta": "a",
 				},
 			},
+			options: []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{
-				"a96faf705af16834e6c632b61e964e1f": {
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
 					"alpha",
 					"dir/beta",
 				},
@@ -118,12 +127,13 @@ func TestDupFinder(t *testing.T) {
 				"gamma": "b",
 				"delta": "b",
 			},
+			options: []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{
-				"4b2212e31ac97fd4575a0b1c44d8843f": {
+				"3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d": {
 					"delta",
 					"gamma",
 				},
-				"a96faf705af16834e6c632b61e964e1f": {
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
 					"alpha",
 					"beta",
 				},
@@ -142,6 +152,7 @@ func TestDupFinder(t *testing.T) {
 		{
 			name: "exclude_pattern",
 			options: []dupfind.Option{
+				dupfind.WithHashFunc(sha256.New),
 				dupfind.WithIncludeFunc(func(p string) bool {
 					_, basename := path.Split(p)
 					return basename != "delta"
@@ -154,7 +165,7 @@ func TestDupFinder(t *testing.T) {
 				"delta": "b",
 			},
 			expected: map[string][]string{
-				"a96faf705af16834e6c632b61e964e1f": {
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
 					"alpha",
 					"beta",
 				},
@@ -173,6 +184,7 @@ func TestDupFinder(t *testing.T) {
 		{
 			name: "exclude_pattern_dir",
 			options: []dupfind.Option{
+				dupfind.WithHashFunc(sha256.New),
 				dupfind.WithIncludeFunc(func(p string) bool {
 					_, basename := path.Split(p)
 					return basename != "x"
@@ -186,7 +198,7 @@ func TestDupFinder(t *testing.T) {
 				"y/alpha": "a",
 			},
 			expected: map[string][]string{
-				"a96faf705af16834e6c632b61e964e1f": {
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
 					"alpha",
 					"beta",
 					"y/alpha",
@@ -199,6 +211,84 @@ func TestDupFinder(t *testing.T) {
 				FilesOpenedPercent: 100,
 				TotalBytes:         3,
 				BytesHashed:        3,
+				BytesHashedPercent: 100,
+				UniqueSizes:        1,
+			},
+		},
+		{
+			name: "sha256",
+			options: []dupfind.Option{
+				dupfind.WithHashFunc(sha256.New),
+			},
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "a",
+			},
+			expected: map[string][]string{
+				"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": {
+					"alpha",
+					"beta",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         2,
+				Files:              2,
+				FilesOpened:        2,
+				FilesOpenedPercent: 100,
+				TotalBytes:         2,
+				BytesHashed:        2,
+				BytesHashedPercent: 100,
+				UniqueSizes:        1,
+			},
+		},
+		{
+			name: "sha512",
+			options: []dupfind.Option{
+				dupfind.WithHashFunc(sha512.New),
+			},
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "a",
+			},
+			expected: map[string][]string{
+				"1f40fc92da241694750979ee6cf582f2d5d7d28e18335de05abc54d0560e0f5302860c652bf08d560252aa5e74210546f369fbbbce8c12cfc7957b2652fe9a75": {
+					"alpha",
+					"beta",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         2,
+				Files:              2,
+				FilesOpened:        2,
+				FilesOpenedPercent: 100,
+				TotalBytes:         2,
+				BytesHashed:        2,
+				BytesHashedPercent: 100,
+				UniqueSizes:        1,
+			},
+		},
+		{
+			name: "xxhash",
+			options: []dupfind.Option{
+				dupfind.WithHashFunc(func() hash.Hash { return xxh3.New() }),
+			},
+			root: map[string]any{
+				"alpha": "a",
+				"beta":  "a",
+			},
+			expected: map[string][]string{
+				"e6c632b61e964e1f": {
+					"alpha",
+					"beta",
+				},
+			},
+			expectedStatistics: &dupfind.Statistics{
+				DirEntries:         2,
+				Files:              2,
+				FilesOpened:        2,
+				FilesOpenedPercent: 100,
+				TotalBytes:         2,
+				BytesHashed:        2,
 				BytesHashedPercent: 100,
 				UniqueSizes:        1,
 			},
