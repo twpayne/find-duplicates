@@ -6,16 +6,15 @@ package dupfind
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"hash"
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
 
+	"github.com/charlievieth/fastwalk"
 	"github.com/twpayne/go-heap"
 	"golang.org/x/sys/cpu"
 )
@@ -235,42 +234,6 @@ func (f *DupFinder) Statistics() *Statistics {
 	}
 }
 
-// concurrentWalkDir is like [fs.WalkDir] except that directories are walked concurrently.
-func (f *DupFinder) concurrentWalkDir(root string, walkDirFunc fs.WalkDirFunc, errCh chan<- error) {
-	dirEntries, err := os.ReadDir(root)
-	if err != nil {
-		errCh <- walkDirFunc(root, nil, err)
-		return
-	}
-	f.statistics.dirEntries.Add(uint64(len(dirEntries)))
-	files := 0
-	for _, dirEntry := range dirEntries {
-		if dirEntry.Type().IsRegular() {
-			files++
-		}
-	}
-	f.statistics.files.Add(uint64(files))
-	var wg sync.WaitGroup
-FOR:
-	for _, dirEntry := range dirEntries {
-		path := filepath.Join(root, dirEntry.Name())
-		switch err := walkDirFunc(path, dirEntry, nil); {
-		case errors.Is(err, fs.SkipAll):
-			break FOR
-		case dirEntry.IsDir() && errors.Is(err, fs.SkipDir):
-			// Skip directory.
-		case err != nil:
-			errCh <- err
-			return
-		case dirEntry.IsDir():
-			wg.Go(func() {
-				f.concurrentWalkDir(path, walkDirFunc, errCh)
-			})
-		}
-	}
-	wg.Wait()
-}
-
 // findPathsWithIdenticalSizes reads paths from uniquePathsWithSize and, once
 // there are more than threshold paths with the same size, writes them to
 // pathsToHashCh.
@@ -305,9 +268,11 @@ func (f *DupFinder) findRegularFiles(root string, regularFilesCh chan<- pathWith
 				return nil
 			}
 		}
+		f.statistics.dirEntries.Add(1)
 		if dirEntry.Type() != 0 {
 			return nil
 		}
+		f.statistics.files.Add(1)
 		fileInfo, err := dirEntry.Info()
 		if err != nil {
 			return err
@@ -320,7 +285,9 @@ func (f *DupFinder) findRegularFiles(root string, regularFilesCh chan<- pathWith
 		}
 		return nil
 	}
-	f.concurrentWalkDir(root, walkDirFunc, errCh)
+	if err := fastwalk.Walk(nil, root, walkDirFunc); err != nil {
+		errCh <- err
+	}
 }
 
 // findUniquePathsWithSize reads paths from regularFilesCh and not-seen-before

@@ -37,7 +37,7 @@ func TestDupFinder(t *testing.T) {
 			options:  []dupfind.Option{dupfind.WithHashFunc(sha256.New)},
 			expected: map[string][]string{},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:  1,
+				DirEntries:  2,
 				Files:       1,
 				TotalBytes:  1,
 				UniqueSizes: 1,
@@ -58,7 +58,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         3,
+				DirEntries:         4,
 				Files:              3,
 				FilesOpened:        2,
 				FilesOpenedPercent: 100 * 2. / 3,
@@ -83,7 +83,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         3,
+				DirEntries:         4,
 				Files:              3,
 				FilesOpened:        3,
 				FilesOpenedPercent: 100,
@@ -109,7 +109,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         3,
+				DirEntries:         4,
 				Files:              2,
 				FilesOpened:        2,
 				FilesOpenedPercent: 100,
@@ -139,7 +139,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         4,
+				DirEntries:         5,
 				Files:              4,
 				FilesOpened:        4,
 				FilesOpenedPercent: 100,
@@ -172,9 +172,9 @@ func TestDupFinder(t *testing.T) {
 			},
 			expectedStatistics: &dupfind.Statistics{
 				DirEntries:         4,
-				Files:              4,
+				Files:              3,
 				FilesOpened:        3,
-				FilesOpenedPercent: 75,
+				FilesOpenedPercent: 100,
 				TotalBytes:         3,
 				BytesHashed:        3,
 				BytesHashedPercent: 100,
@@ -231,7 +231,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         2,
+				DirEntries:         3,
 				Files:              2,
 				FilesOpened:        2,
 				FilesOpenedPercent: 100,
@@ -257,7 +257,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         2,
+				DirEntries:         3,
 				Files:              2,
 				FilesOpened:        2,
 				FilesOpenedPercent: 100,
@@ -283,7 +283,7 @@ func TestDupFinder(t *testing.T) {
 				},
 			},
 			expectedStatistics: &dupfind.Statistics{
-				DirEntries:         2,
+				DirEntries:         3,
 				Files:              2,
 				FilesOpened:        2,
 				FilesOpenedPercent: 100,
