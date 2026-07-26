@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/alecthomas/repr v0.5.2 // indirect
+	github.com/alecthomas/repr v0.5.4 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 )
