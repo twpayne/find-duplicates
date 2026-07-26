@@ -1,8 +1,6 @@
 // find-duplicates finds duplicate files, concurrently.
 package main
 
-// FIXME operate on io/fs.FS
-
 import (
 	"context"
 	"crypto/sha256"
